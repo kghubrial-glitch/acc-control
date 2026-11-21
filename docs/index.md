@@ -9,10 +9,9 @@ description: Headless Node.js client for the Nulls Brawl protocol — accounts, 
 friends, spectating and bot fleets — without installing the game, without root and without
 patching the APK. Runs on Windows, Linux, macOS and Android (Termux).
 
-[GitHub](https://github.com/Patrick-9936/nulls-headless-client) ·
-[Releases](https://github.com/Patrick-9936/nulls-headless-client/releases/latest) ·
-[Документация на русском](https://github.com/Patrick-9936/nulls-headless-client/blob/main/README.md) ·
-[English README](https://github.com/Patrick-9936/nulls-headless-client/blob/main/README.en.md)
+[GitHub](https://github.com/kghubrial-glitch/acc-control) ·
+[Releases](https://github.com/kghubrial-glitch/acc-control/releases/latest) ·
+[English README](https://github.com/kghubrial-glitch/acc-control/blob/main/README.md)
 
 ---
 

@@ -1,54 +1,55 @@
 # nulls headless client
 
-[**RU**](README.md) · [EN](README.en.md) · [TR](README.tr.md) · [ZH](README.zh.md)
+**EN** · [TR](README.tr.md) · [ZH](README.zh.md)
 
-[![ci](https://github.com/Patrick-9936/nulls-headless-client/actions/workflows/ci.yml/badge.svg)](https://github.com/Patrick-9936/nulls-headless-client/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/Patrick-9936/nulls-headless-client)](https://github.com/Patrick-9936/nulls-headless-client/releases)
+[![ci](https://github.com/kghubrial-glitch/acc-control/actions/workflows/ci.yml/badge.svg)](https://github.com/kghubrial-glitch/acc-control/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/kghubrial-glitch/acc-control)](https://github.com/kghubrial-glitch/acc-control/releases)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Клиент протокола **Nulls Brawl 69.252** для Node.js: аккаунты, клубы, лобби, друзья,
-наблюдение за боями и несколько онлайн-сессий одновременно. Без игры, без root, без
-правки APK — только сеть и протокол.
+A Node.js client for the **Nulls Brawl 69.252** protocol: accounts, clubs, lobby, friends,
+battle spectating and several online sessions at once. No game, no root, no APK patching —
+only the network and the protocol.
 
-Проект неофициальный и не связан с Supercell или Nulls. Код — MIT ([`LICENSE`](LICENSE)),
-оговорки про игру, ассеты и дампы — [`NOTICE.md`](NOTICE.md).
+The project is unofficial and not affiliated with Supercell or Nulls. The code is MIT
+([`LICENSE`](LICENSE)); the disclaimers about the game, assets and dumps are in
+[`NOTICE.md`](NOTICE.md).
 
-Нужен только Node.js 20+: клиент запускается на **Windows, Linux, macOS и Android (Termux)**.
-Что где работает и какие есть ограничения — [`docs/PLATFORMS.md`](docs/PLATFORMS.md).
+You only need Node.js 20+: the client runs on **Windows, Linux, macOS and Android (Termux)**.
+What works where and what the limits are — [`docs/PLATFORMS.md`](docs/PLATFORMS.md).
 
-## Что умеет
+## What it does
 
-| Область | Возможности |
+| Area | Capabilities |
 |---|---|
-| Аккаунты | создание гостя, вход по сохранённому токену, регион, смена устройства, блокировка файла от двух сессий |
-| Клубы | создание, вход, чат, лента, заявки, роли, кик, приглашения, настройки, топ, рекомендации |
-| Лобби | создание комнаты и вход по коду, приглашения друга и соклубника, ответы, режим и карта, готовность |
-| Друзья | добавление по тегу, принятие, отказ, удаление, список и онлайн |
-| Бой | подбор, отмена, загрузка боя, UDP-кадры, Brawl TV и наблюдение за игроком |
-| Флот | запуск десятков ботов, команды на лету, пауза и возобновление, статусы |
-| Интерфейс | интерактивное меню, CLI, пять языков (ru / en / tr / zh / ar), JSON-вывод для скриптов |
-| Связка | Nulls Connect: PIN на e-mail, bearer-токен, bind игрового аккаунта |
+| Accounts | guest creation, login with a saved token, region, device change, file lock against two sessions |
+| Clubs | create, join, chat, stream, requests, roles, kick, invites, settings, top, recommendations |
+| Lobby | create a room and join by code, invite a friend or clubmate, replies, mode and map, readiness |
+| Friends | add by tag, accept, decline, remove, list and online |
+| Battle | matchmaking, cancel, battle load, UDP frames, Brawl TV and player spectating |
+| Fleet | run dozens of bots, command them on the fly, pause and resume, statuses |
+| Interface | interactive menu, CLI, five languages (ru / en / tr / zh / ar), JSON output for scripts |
+| Connect | Nulls Connect: PIN to e-mail, bearer token, bind of a game account |
 
-Что проверено на живом сервере, а что нет — [`docs/VERIFICATION.md`](docs/VERIFICATION.md) и
-`node Program.js features`.
+What has been verified against a live server and what has not —
+[`docs/VERIFICATION.md`](docs/VERIFICATION.md) and `node Program.js features`.
 
-## Быстрый старт
+## Quick start
 
-### Одним файлом
+### Single file
 
-Скачайте `Nulls.js` из [последнего релиза](https://github.com/Patrick-9936/nulls-headless-client/releases/latest)
-и запустите:
+Download `Nulls.js` from the [latest release](https://github.com/Patrick-9936/nulls-headless-client/releases/latest)
+and run:
 
 ```sh
 node Nulls.js
 ```
 
-Нужен Node.js 20+, зависимости уже внутри. Управление: стрелки, enter, esc, ctrl+c.
-При первом запуске рядом появится `.nulls-single-<версия>` с настройками и аккаунтами —
-не удаляйте её, в ней живут ваши сохранённые входы. Подробнее: [`docs/TUI.md`](docs/TUI.md).
+You need Node.js 20+, dependencies are already inside. Controls: arrow keys, enter, esc, ctrl+c.
+On the first run a `.nulls-single-<version>` directory appears next to the script — keep it,
+it holds your saved logins. Details: [`docs/TUI.md`](docs/TUI.md).
 
-### Из git
+### From git
 
 ```sh
 git clone https://github.com/Patrick-9936/nulls-headless-client.git
@@ -57,162 +58,163 @@ npm ci --ignore-scripts
 node TUI.js
 ```
 
-### Из zip в Termux
+### Termux
 
-Распаковывайте **в домашнюю папку**, не запускайте из общего хранилища Android —
-там нет прав на создание файлов состояния:
+Unpack into your **home directory**, not shared Android storage — there are no write
+permissions for state files there:
 
 ```sh
 pkg install nodejs unzip
 unzip /sdcard/Download/nulls-headless-client-0.3.2.zip -d "$HOME"
 cd ~/nulls-headless-client-0.3.4
-node Program.js create-account --account accounts/bot-1.json --name 'МойБот' --once
+node Program.js create-account --account accounts/bot-1.json --name 'MyBot' --once
 node Program.js login --account accounts/bot-1.json
 ```
 
-В zip зависимости и блок лицензии уже входят. Ник задаётся при регистрации, сменить его
-потом нельзя.
+The zip already contains the dependencies and the license block. The nickname is set at
+registration and cannot be changed later.
 
-## Веб-консоль
+## Web console
 
-Тот же клиент можно поднять как сайт одним файлом — `server.js` (без дополнительных
-зависимостей, только встроенные модули Node):
+Run the same client as a website from a single file, `server.js` (Node built-ins only, no extra
+dependencies):
 
 ```sh
-node server.js                    # http://localhost:3000
-PORT=8080 node server.js          # другой порт
-HOST=127.0.0.1 node server.js     # слушать только локально
-WEB_TOKEN=секрет node server.js   # требовать токен для доступа
+npm start                 # http://localhost:3000
+PORT=8080 node server.js  # custom port
+HOST=0.0.0.0 node server.js  # listen on all interfaces (default)
+WEB_TOKEN=secret node server.js  # optional: require a token for the web UI
 ```
 
-Страница даёт дашборд, терминал (любая команда `node Program.js …`), управление
-аккаунтами, флотом ботов, клубами/друзьями, лобби и настройками. Каждая кнопка — это та
-же CLI-команда, запущенная на сервере с `--json`, поэтому поведение совпадает с
-терминалом. Веб-интерфейс использует встроенный каталог `ar`: язык аккаунта можно выбрать
-арабским (`ar-SA`), а интерфейс — через `lang ar`.
+The page provides a dashboard, a terminal (any `node Program.js …` command), and panes for
+accounts, bot fleet, clubs/friends, lobby and config. Every button runs the same CLI command
+on the server with `--json`, so the behaviour matches the terminal. On hosting panels the
+allocated port is usually passed in `PORT` or `SERVER_PORT` automatically. Arabic is available
+as an account game language (`ar-SA`) and as the interface language (`lang ar`).
 
-## Аккаунты
+## Accounts
 
-`accounts/*.json` содержат `passToken` — это и есть вход. Сохраняйте файлы: удаление
-аккаунта создаёт нового гостя, а не восстанавливает прежнего. Один файл аккаунта может
-использовать только одна сессия; это защищает `lib/AccountLock.js` и файл `.lock`.
+`accounts/*.json` contain `passToken` — that is the login. Keep these files safe: deleting an
+account creates a new guest instead of restoring the old one. One account file may be used by
+only one session at a time; this is protected by `lib/AccountLock.js` and the `.lock` file.
 
-Архив релиза не содержит готовых аккаунтов — только код, зависимости и блок лицензии.
+The release archive contains no ready-made accounts — only code, dependencies and the license block.
 
-## Язык интерфейса
+## Interface language
 
 ```sh
-node Program.js lang           # текущий язык, режим и источник
-node Program.js lang tr        # зафиксировать язык в config.json
-node Program.js lang auto      # вернуть авто-выбор по системе
-node Program.js help --lang en # разовый запуск на другом языке
+node Program.js lang           # current language, mode and source
+node Program.js lang tr        # pin the language in config.json
+node Program.js lang auto      # return to system auto-detection
+node Program.js help --lang en # single run in another language
 ```
 
-Поддерживаются `ru`, `en`, `tr`, `zh`, `ar`. По умолчанию включён авто-режим
-(`uiLanguage: "auto"`): язык берётся из `NULLS_LANG` / `LC_ALL` / `LC_MESSAGES` / `LANG`,
-затем из системной локали Node (`Intl`), иначе `ru`. Явный `--lang` важнее конфига,
-конкретный код в `uiLanguage` важнее окружения.
+Supported: `ru`, `en`, `tr`, `zh`, `ar`. Auto mode (`uiLanguage: "auto"`) is on by default:
+the language is taken from `NULLS_LANG` / `LC_ALL` / `LC_MESSAGES` / `LANG`, then from the
+Node system locale (`Intl`), otherwise `ru`. An explicit `--lang` beats the config, and a
+concrete code in `uiLanguage` beats the environment.
 
-Переключение языка интерфейса **не** меняет раскладку логина: `locale` уходит только в
-legacy-логин, а `preferredLanguage` / `storefront*` — только в modern, и включать modern
-вслепую небезопасно (issue #3). Как добавить свой язык — [`docs/I18N.md`](docs/I18N.md).
+Switching the interface language does **not** change the login layout: `locale` only goes to
+the legacy login, and `preferredLanguage` / `storefront*` only to the modern one — enabling
+modern blindly is unsafe (issue #3). How to add your own language —
+[`docs/I18N.md`](docs/I18N.md).
 
-## Несколько ботов
+## Multiple bots
 
 ```sh
-node tools/fleet.js start --first 1 --count 3 --name-prefix 'МойБот' --concurrency 3
+node tools/fleet.js start --first 1 --count 3 --name-prefix 'MyBot' --concurrency 3
 node tools/fleet.js status
-node tools/fleet.js command --bot 1 --action create-club --club-name 'НашКлуб'
-node tools/fleet.js command --bot 2 --action join-club --club-tag '#ТЕГ_ИЗ_ОТВЕТА'
+node tools/fleet.js command --bot 1 --action create-club --club-name 'OurClub'
+node tools/fleet.js command --bot 2 --action join-club --club-tag '#TAG_FROM_THE_ANSWER'
 node tools/fleet.js stop
 ```
 
-`--first` и `--count` задают файлы `accounts/bot-N.json`, `--name-prefix` применяется
-только к новым аккаунтам. Ошибка одного бота не замораживает очередь: отказ виден в
-`clubError`, уже вошедший бот остаётся онлайн. Есть `retry`, `pause`, `resume`.
+`--first` and `--count` define the files `accounts/bot-N.json`, `--name-prefix` only applies to
+new accounts. A single bot's error does not freeze the queue: the refusal is visible in
+`clubError`, and an already-logged-in bot stays online. There are `retry`, `pause`, `resume`.
 
-Фоновый процесс пишет `fleet.log` и `fleet-status.json`, переподключается после разрыва и
-просит termux wake-lock (на Windows/Linux/macOS — no-op). Android всё равно может прибить
-Termux — для постоянной работы нужен сервер, а не телефон. Наличие процесса не значит, что
-все боты вошли: смотрите `states` и `bots`. `--timeout` — миллисекунды.
+The background process writes `fleet.log` and `fleet-status.json`, reconnects after a drop and
+asks for a Termux wake-lock (no-op on Windows/Linux/macOS). Android may still kill Termux — for
+24/7 operation you need a server, not a phone. The process existing does not mean all bots are
+logged in: look at `states` and `bots`. `--timeout` is in milliseconds.
 
-### Наблюдение и реестр
+### Watching and registry
 
 ```sh
-node Program.js watch                    # живой дашборд: статусы, метрики, хвост fleet.log
-node Program.js watch --once --json      # один кадр в JSON
-node tools/accounts.js list              # реестр accounts/index.json: теги, имена, клубы
+node Program.js watch                    # live dashboard: statuses, metrics, fleet.log tail
+node Program.js watch --once --json      # single frame as JSON
+node tools/accounts.js list              # registry accounts/index.json: tags, names, clubs
 node tools/accounts.js stats
-node tools/accounts.js prune --dry-run   # что можно удалить, ничего не удаляя
+node tools/accounts.js prune --dry-run   # what can be removed, without deleting anything
 ```
 
-`watch` читает `fleet-status.json`, `fleet.pid`, `fleet.log`, `accounts/index.json` и
-`.runtime/results`; флаги `--interval`, `--log-lines`, `--bots 1:13`, `--no-color`:
-[`docs/WATCH.md`](docs/WATCH.md). Реестр и `prune` (файлы с токенами не удаляются никогда):
-[`docs/ACCOUNTS.md`](docs/ACCOUNTS.md).
+`watch` reads `fleet-status.json`, `fleet.pid`, `fleet.log`, `accounts/index.json` and
+`.runtime/results`; flags `--interval`, `--log-lines`, `--bots 1:13`, `--no-color`:
+[`docs/WATCH.md`](docs/WATCH.md). The registry and `prune` (files with tokens are never
+deleted): [`docs/ACCOUNTS.md`](docs/ACCOUNTS.md).
 
-`fleet-status.json` содержит `metrics`: uptime, входы, провалы, `avgLoginMs`, `p95LoginMs`,
-`avgRttMs` (время «запрос→ответ», окно 50), счётчики команд. Статус пишется не чаще 2 раз в секунду (коалесирование событий);
-`--status-interval 0` возвращает запись на каждое изменение. `fleet.log` ротируется
-(5 МБ × 3 архива, `--log-max-bytes`, `--log-keep`), `.runtime` чистится от старых
-результатов и зависших команд. Подробности — [`docs/FLEET.md`](docs/FLEET.md).
+`fleet-status.json` contains `metrics`: uptime, logins, failures, `avgLoginMs`, `p95LoginMs`,
+`avgRttMs` (request→response time, window 50) and command counters. The status is written at
+most twice a second (event coalescing); `--status-interval 0` returns a record on every change.
+`fleet.log` is rotated (5 MB × 3 archives, `--log-max-bytes`, `--log-keep`), `.runtime` is
+cleaned of old results and stuck commands. Details — [`docs/FLEET.md`](docs/FLEET.md).
 
-## Лобби и бой
+## Lobby and battle
 
-Команды лобби и боя лучше отправлять через `fleet command`: так сохраняется одна
-онлайн-сессия, а не открывается новая на каждую команду.
+Lobby and battle commands are best sent through `fleet command`: that keeps one online session
+instead of opening a new one for each command.
 
 ```sh
 node tools/fleet.js command --bot 1 --action create-room --type 0
-node tools/fleet.js command --bot 1 --action chat --text 'Привет'
+node tools/fleet.js command --bot 1 --action chat --text 'Hi'
 node tools/fleet.js command --bot 1 --action matchmake
 node tools/fleet.js command --bot 1 --action cancel-matchmake
 node tools/fleet.js command --bot 1 --action leave-room
 ```
 
-`--type 0` — обычная команда, `--type 1` — дружеский бой. В обычной команде сервер
-запрещает одинаковых бойцов. Выбор бойца в лобби — `team-brawler --brawler <id> [--slot 0]`
-(пакет 14375, экспериментальная: раскладка восстановлена из libg, живьём сервер её пока
-не подтвердил — см. [`docs/REQUESTS.md`](docs/REQUESTS.md)). `--battle-transport udp`
-включает получение кадров боя и нейтральные пакеты, движение и атаки не реализованы:
+`--type 0` is a normal team, `--type 1` is a friendly battle. In a normal team the server
+forbids identical brawlers. Choosing a brawler in the lobby is `team-brawler --brawler <id> [--slot 0]`
+(packet 14375, experimental: the layout was recovered from libg and the live server has not
+confirmed it yet — see [`docs/REQUESTS.md`](docs/REQUESTS.md)). `--battle-transport udp`
+enables battle frame reception and neutral packets; movement and attacks are not implemented:
 [`docs/BATTLE_UDP.md`](docs/BATTLE_UDP.md).
 
-Прогресс подбора (`x/6`, `x/10`) приходит от сервера и виден в `matchmaking` статуса.
-В `tools/candidates.js` следующий бот по умолчанию ждёт назначения матча предыдущему
-(`--max-queued 1`): [`docs/MATCHMAKING.md`](docs/MATCHMAKING.md).
+Matchmaking progress (`x/6`, `x/10`) comes from the server and is visible in the `matchmaking`
+status. In `tools/candidates.js` the next bot by default waits for the previous bot's match
+assignment (`--max-queued 1`): [`docs/MATCHMAKING.md`](docs/MATCHMAKING.md).
 
-Полный список команд и параметров — [`docs/COMMANDS.md`](docs/COMMANDS.md); статусы
-функций — `node Program.js features`.
+The full list of commands and options is in [`docs/COMMANDS.md`](docs/COMMANDS.md); feature
+statuses — `node Program.js features`.
 
-Важное правило проекта: успешная отправка пакета не считается выполненным действием.
-Если сервер не подтвердил, вы получите `confirmed: false`, отказ или таймаут. Заявки,
-регионы и встроенные боты: [`docs/REQUESTS.md`](docs/REQUESTS.md). Непроверенные команды
-помечены экспериментальными и требуют `--experimental`.
+An important project rule: successfully sending a packet is not a completed action. If the
+server did not confirm, you get `confirmed: false`, a refusal or a timeout. Requests, regions
+and built-in bots: [`docs/REQUESTS.md`](docs/REQUESTS.md). Unverified commands are marked
+experimental and require `--experimental`.
 
 ## Nulls Connect
 
-Привязка игрового аккаунта к identity на `connect.nulls.gg`: PIN на e-mail, bearer-токен,
-bind по JWT из `LoginOk`.
+Binding a game account to an identity on `connect.nulls.gg`: PIN to e-mail, bearer token, bind
+by JWT from `LoginOk`.
 
 ```sh
 node tools/connect.js pin --email you@example.com
 node tools/connect.js confirm --email you@example.com --pin 1234
-node tools/connect.js bind --account accounts/bot-1.json     # привязать
+node tools/connect.js bind --account accounts/bot-1.json     # bind
 node tools/connect.js links
-node tools/connect.js unbind --account accounts/bot-1.json   # отвязать
-node Program.js login --account accounts/bot-1.json --connect-bind  # привязать сразу при входе
+node tools/connect.js unbind --account accounts/bot-1.json   # unbind
+node Program.js login --account accounts/bot-1.json --connect-bind  # bind right on login
 ```
 
-Токен хранится в `.runtime/connect.json` с правами `0600` и не попадает в git.
-`--connect-bind` необязателен: без bind-токена или bearer шаг пропускается, вход остаётся
-успешным. Полный цикл, переменные окружения и таблица ошибок:
+The token is stored in `.runtime/connect.json` with `0600` permissions and never enters git.
+`--connect-bind` is optional: without a bind token or bearer the step is skipped and the login
+stays successful. Full flow, environment variables and the error table:
 [`docs/CONNECT.md`](docs/CONNECT.md).
 
-## Свои скрипты
+## Custom scripts
 
-Скрипты можно держать вне репозитория и копировать в `tools/`: они подключают модули
-клиента относительными путями. Контракт совместимости — что гарантируется, а что может
-измениться — [`docs/SCRIPTS.md`](docs/SCRIPTS.md).
+Scripts can live outside the repository and be copied into `tools/`: they import the client
+modules with relative paths. The compatibility contract — what is guaranteed and what may
+change — is in [`docs/SCRIPTS.md`](docs/SCRIPTS.md).
 
 ```sh
 cp /sdcard/nulls-tools/*.js ~/nulls-headless-client/tools/
@@ -220,11 +222,11 @@ cd ~/nulls-headless-client
 node tools/club-rush.js help
 ```
 
-В репозитории уже есть `tools/fleet.js` (флот), `tools/connect.js` (Nulls Connect),
-`tools/candidates.js` (регистрация кандидатов с бюджетом памяти), `tools/proxy-watch.js`
-(сбор рабочих прокси), `tools/test-session.js` (ограниченный интеграционный тест).
+The repository already ships `tools/fleet.js` (fleet), `tools/connect.js` (Nulls Connect),
+`tools/candidates.js` (candidate registration with a memory budget), `tools/proxy-watch.js`
+(working-proxy collection) and `tools/test-session.js` (a limited integration test).
 
-## Обновление под новый APK
+## Updating for a new APK
 
 ```sh
 node Program.js update --check
@@ -233,29 +235,30 @@ node Program.js update --watch --interval 1800 --account accounts/offline-bot.js
 node Program.js update --rollback
 ```
 
-Обновление читает установленный APK и серверный fingerprint, изменения применяются после
-проверки `LoginOk` и `Home`. Нужен существующий **отключённый** аккаунт: блокировка не
-даст двум сессиям войти одновременно. Для APK есть `--apk PATH`, `--split-apk PATH`, для
-ресурсов — `--no-apk`; извлечение требует python и aapt2. Скрипт не скачивает игру.
-Смена криптографии в следующем major может потребовать правок кода — совместимость с v70
-не гарантируется.
+The updater reads the installed APK and the server fingerprint; changes are applied after
+checking `LoginOk` and `Home`. You need an existing **offline** account: the lock prevents two
+sessions from logging in at once. For the APK there are `--apk PATH`, `--split-apk PATH`, and
+for resources `--no-apk`; extraction requires python and aapt2. The script does not download the
+game. A cryptography change in the next major may require code changes — compatibility with v70
+is not guaranteed.
 
-Как обновить `config.json` и блок лицензии вручную: [`docs/APK-UPDATE.md`](docs/APK-UPDATE.md).
+How to update `config.json` and the license block manually:
+[`docs/APK-UPDATE.md`](docs/APK-UPDATE.md).
 
-## Прокси
+## Proxy
 
 ```sh
 node Program.js login --account accounts/bot-1.json --proxy-file proxy.json
 node tools/proxy-watch.js --pool-limit 500
 ```
 
-`proxy.json`: `{"url":"socks5://HOST:PORT"}` или
-`{"url":"http://HOST:PORT","username":"USER","password":"PASS"}`. Есть
-`--proxy-pool-file working-proxies.json` и сборщик `tools/proxy-watch.js`. Рабочим
-считается туннель, получивший корректный `ServerHello` от сервера игры. Трафик устройства
-не перенаправляется.
+`proxy.json`: `{"url":"socks5://HOST:PORT"}` or
+`{"url":"http://HOST:PORT","username":"USER","password":"PASS"}`. There is also
+`--proxy-pool-file working-proxies.json` and the collector `tools/proxy-watch.js`. A tunnel is
+considered working if it receives a correct `ServerHello` from the game server. Device traffic
+is not redirected.
 
-## Диагностика
+## Diagnostics
 
 ```sh
 node Program.js help
@@ -266,78 +269,77 @@ node Program.js tag-decode '#GL0J2CPP0'
 node Program.js account-info --account accounts/bot-1.json
 ```
 
-`--dump` сохраняет пакеты в `PacketsDumps/`, включая данные входа: не публикуйте дампы и
-токены. Код комнаты раскрывает её ID, но не прошлые и будущие комнаты:
-[`docs/ROOM_CODES.md`](docs/ROOM_CODES.md). Возраст в Nulls не подтверждается, `--age`
-отклоняется. Supercell ID не реализован, дружба работает по игровому тегу.
+`--dump` saves packets to `PacketsDumps/`, including login data: do not publish dumps or tokens.
+A room code reveals its ID but not past or future rooms: [`docs/ROOM_CODES.md`](docs/ROOM_CODES.md).
+Age is not confirmed in Nulls, `--age` is rejected. Supercell ID is not implemented; friends
+work by game tag.
 
 Brawl TV: `brawl-tv`, `brawl-tv-channels`, `brawl-tv-next` — [`docs/BRAWL_TV.md`](docs/BRAWL_TV.md).
-Ограниченный тест в Codespaces — [`docs/CODESPACES.md`](docs/CODESPACES.md).
+A limited Codespaces test — [`docs/CODESPACES.md`](docs/CODESPACES.md).
 
-## Разработка
+## Development
 
 ```sh
 npm ci --ignore-scripts
-npm test            # node --test, весь набор
-npm run check       # синтаксис + info
-npm run lint        # то же, для CI
+npm test            # node --test, the whole suite
+npm run check       # syntax + info
+npm run lint        # same, for CI
 node Nulls.js --self-test
 ```
 
-Один тест: `node --test tests/<файл>.test.js`. Стиль — prettier и editorconfig в корне,
-правила — `eslint.config.mjs`. Как устроен репозиторий и как добавить команду или пакет:
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Как контрибьютить:
+A single test: `node --test tests/<file>.test.js`. Style is prettier and editorconfig in the
+root; rules are in `eslint.config.mjs`. How the repository is organised and how to add a command
+or package: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). How to contribute:
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Сборка релиза
+## Release build
 
 ```sh
 npm run bundle        # zip + Nulls.js + sha256
-npm run bundle:check  # пересобрать в $TMPDIR и сверить с закоммиченным Nulls.js
+npm run bundle:check  # rebuild into $TMPDIR and compare with the committed Nulls.js
 ```
 
-Сборка воспроизводима: `node_modules/.package-lock.json`, npm-кэши и `node_modules/.bin`
-в бандл не попадают, отметки времени в zip фиксированы, поэтому архив собирается
-байт-в-байт. Содержимое `Nulls.js` CI сверяет по хешу (а не по байтам файла: сам gzip
-зависит от версии zlib в системе). Расхождение — красный CI. `Nulls.js` в корне —
-готовая сборка, шаблон запуска — `tools/single-file.template`. Тег `vX.Y.Z` запускает
-релизный workflow; пошагово — [`docs/RELEASING.md`](docs/RELEASING.md).
+The build is reproducible: `node_modules/.package-lock.json`, npm caches and
+`node_modules/.bin` do not make it into the bundle, zip timestamps are fixed, so the archive is
+built byte-for-byte. The content of `Nulls.js` is verified by CI against a hash (not the file
+bytes: gzip itself depends on the zlib version). A mismatch fails CI red. `Nulls.js` in the
+root is the built single file; the launch template is `tools/single-file.template`. Tag
+`vX.Y.Z` starts the release workflow; step by step — [`docs/RELEASING.md`](docs/RELEASING.md).
 
-## Документация
+## Documentation
 
-| Файл | О чём |
+| File | About |
 |---|---|
-| [`docs/COMMANDS.md`](docs/COMMANDS.md) | все команды, флаги, примеры |
-| [`docs/REQUESTS.md`](docs/REQUESTS.md) | приглашения, заявки, регионы, встроенные боты |
-| [`docs/MATCHMAKING.md`](docs/MATCHMAKING.md) | подбор, очереди, неизвестный исход |
-| [`docs/BATTLE_UDP.md`](docs/BATTLE_UDP.md) | кадры боя по UDP |
-| [`docs/BRAWL_TV.md`](docs/BRAWL_TV.md) | наблюдение и каналы |
-| [`docs/ROOM_CODES.md`](docs/ROOM_CODES.md) | коды комнат |
-| [`docs/TUI.md`](docs/TUI.md) | меню, навигация, формы |
-| [`docs/I18N.md`](docs/I18N.md) | языки интерфейса и как добавить свой |
+| [`docs/COMMANDS.md`](docs/COMMANDS.md) | all commands, flags, examples |
+| [`docs/REQUESTS.md`](docs/REQUESTS.md) | invites, requests, regions, built-in bots |
+| [`docs/MATCHMAKING.md`](docs/MATCHMAKING.md) | matchmaking, queues, unknown outcome |
+| [`docs/BATTLE_UDP.md`](docs/BATTLE_UDP.md) | battle frames over UDP |
+| [`docs/BRAWL_TV.md`](docs/BRAWL_TV.md) | spectating and channels |
+| [`docs/ROOM_CODES.md`](docs/ROOM_CODES.md) | room codes |
+| [`docs/TUI.md`](docs/TUI.md) | menu, navigation, forms |
+| [`docs/I18N.md`](docs/I18N.md) | interface languages and how to add your own |
 | [`docs/CONNECT.md`](docs/CONNECT.md) | Nulls Connect |
-| [`docs/SCRIPTS.md`](docs/SCRIPTS.md) | контракт для внешних скриптов |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | устройство проекта |
-| [`docs/VERIFICATION.md`](docs/VERIFICATION.md) | что проверено на живом сервере |
-| [`docs/APK-UPDATE.md`](docs/APK-UPDATE.md) | обновление под новый APK |
-| [`docs/RELEASING.md`](docs/RELEASING.md) | выпуск версии |
-| [`docs/CODESPACES.md`](docs/CODESPACES.md) | ограниченный интеграционный тест |
-| [`docs/FLEET.md`](docs/FLEET.md) | флот: статус, команды, лимиты |
-| [`docs/WATCH.md`](docs/WATCH.md) | дашборд `watch`, `--json` / `--quiet` |
-| [`docs/ACCOUNTS.md`](docs/ACCOUNTS.md) | реестр аккаунтов, `prune`, токены |
-| [`docs/ERRORS.md`](docs/ERRORS.md) | коды ошибок для скриптов |
+| [`docs/SCRIPTS.md`](docs/SCRIPTS.md) | contract for external scripts |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | project internals |
+| [`docs/VERIFICATION.md`](docs/VERIFICATION.md) | what was verified on a live server |
+| [`docs/APK-UPDATE.md`](docs/APK-UPDATE.md) | updating for a new APK |
+| [`docs/RELEASING.md`](docs/RELEASING.md) | releasing a version |
+| [`docs/CODESPACES.md`](docs/CODESPACES.md) | limited integration test |
+| [`docs/FLEET.md`](docs/FLEET.md) | fleet: statuses, commands, limits |
+| [`docs/WATCH.md`](docs/WATCH.md) | the `watch` dashboard, `--json` / `--quiet` |
+| [`docs/ACCOUNTS.md`](docs/ACCOUNTS.md) | account registry, `prune`, tokens |
+| [`docs/ERRORS.md`](docs/ERRORS.md) | error codes for scripts |
 | [`docs/PLATFORMS.md`](docs/PLATFORMS.md) | Windows, Linux, macOS, Android |
 
-## Ограничения
+## Limitations
 
-- Игра не запускается: клиент говорит по протоколу, но не рендерит и не играет.
-- Управление бойцом, движение и атаки не реализованы.
-- Серверные рекомендации клубов и ранжирование — на стороне сервера.
-- `Supercell ID`, подтверждение возраста, смена уже заданного ника — не поддерживаются.
-- Долгая работа ботов на телефоне упирается в ограничения Android, а не в клиент.
+- The game is not launched: the client speaks the protocol but does not render or play.
+- Brawler control, movement and attacks are not implemented.
+- Server-side club recommendations and ranking stay on the server side.
+- `Supercell ID`, age confirmation, changing an already-set nickname are not supported.
+- Long-term bot operation on a phone hits Android limitations, not the client.
 
-## Лицензия
+## License
 
-Код репозитория — MIT ([`LICENSE`](LICENSE)). Права на игру, её ассеты и данные APK
-принадлежат правообладателям; `client-license.bin` под MIT не попадает. Проект
-неофициальный.
+The repository code is MIT ([`LICENSE`](LICENSE)). Rights to the game, its assets and APK data
+belong to their owners; `client-license.bin` is not covered by MIT. The project is unofficial.

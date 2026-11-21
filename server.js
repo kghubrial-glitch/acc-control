@@ -30,7 +30,8 @@ const VERSION = (() => {
     return '0.0.0';
   }
 })();
-const PORT = Number(process.env.PORT || 3000);
+// SERVER_PORT is what most game-server panels (Pterodactyl/Wispbyte) inject.
+const PORT = Number(process.env.PORT || process.env.SERVER_PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const WEB_TOKEN = process.env.WEB_TOKEN || '';
 

@@ -26,8 +26,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node Program.js help",
+    "start": "node server.js",
     "serve": "node server.js",
+    "help": "node Program.js help",
     "check": "node --check server.js && node --check Program.js && node --check TUI.js && node --check lib/Client.js && node --check lib/CLI.js && node --check lib/i18n.js && node --check lib/Connect.js && node --check lib/Fleet.js && node --check tools/fleet.js && node --check tools/connect.js && node --check tools/i18n-check.js && node Program.js info && node tools/i18n-check.js && node --check tools/candidates.js && node --check tools/proxy-watch.js && node --check tools/test-session.js",
     "lint": "eslint .",
     "lint:eslint": "eslint .",

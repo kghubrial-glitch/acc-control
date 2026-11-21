@@ -1,6 +1,6 @@
 # nulls headless client
 
-[RU](README.md) · [EN](README.en.md) · **TR** · [ZH](README.zh.md)
+[EN](README.md) · **TR** · [ZH](README.zh.md)
 
 [![ci](https://github.com/Patrick-9936/nulls-headless-client/actions/workflows/ci.yml/badge.svg)](https://github.com/Patrick-9936/nulls-headless-client/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/Patrick-9936/nulls-headless-client)](https://github.com/Patrick-9936/nulls-headless-client/releases)
@@ -74,7 +74,7 @@ node TUI.js
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | istemcinin yapısı |
 | [`docs/VERIFICATION.md`](docs/VERIFICATION.md) | canlı sunucuda doğrulananlar |
 
-Tam ayrıntı Rusça README'de: [`README.md`](README.md).
+Tüm ayrıntı İngilizce README'de: [`README.md`](README.md).
 
 ## Lisans
 

@@ -1,6 +1,6 @@
 # nulls headless client
 
-[RU](README.md) · [EN](README.en.md) · [TR](README.tr.md) · **ZH**
+[EN](README.md) · [TR](README.tr.md) · **ZH**
 
 [![ci](https://github.com/Patrick-9936/nulls-headless-client/actions/workflows/ci.yml/badge.svg)](https://github.com/Patrick-9936/nulls-headless-client/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/Patrick-9936/nulls-headless-client)](https://github.com/Patrick-9936/nulls-headless-client/releases)
@@ -72,7 +72,7 @@ node TUI.js
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 客户端结构 |
 | [`docs/VERIFICATION.md`](docs/VERIFICATION.md) | 已在真实服务器验证的内容 |
 
-完整细节见俄语 README：[`README.md`](README.md)。
+完整细节见英文 README：[`README.md`](README.md)。
 
 ## 许可
 
