@@ -377,7 +377,10 @@ server.listen(PORT, HOST, () => {
 // The web UI (single page embedded inline)
 // ---------------------------------------------------------------------------
 
-const PAGE = `<!DOCTYPE html>
+// String.raw keeps the embedded client script verbatim: a normal template
+// literal would turn escapes such as `\n` inside the JS into real newlines
+// and the inline script would fail to parse in the browser.
+const PAGE = String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
