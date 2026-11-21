@@ -92,6 +92,12 @@ on the server with `--json`, so the behaviour matches the terminal. On hosting p
 allocated port is usually passed in `PORT` or `SERVER_PORT` automatically. Arabic is available
 as an account game language (`ar-SA`) and as the interface language (`lang ar`).
 
+For many accounts at once use the **Fleet** pane: set first/count/name-prefix and a **club
+tag**, then Start — every bot is created and logged in, and each one joins that club
+(`node tools/fleet.js start --first 1 --count 20 --name-prefix Bot --club-tag #TAG`). The
+Bots table shows each account's name, tag, club and status. Tick **All bots** to send one
+command to every bot, e.g. `join-club --club-tag #TAG` or `leave-club`.
+
 ## Accounts
 
 `accounts/*.json` contain `passToken` — that is the login. Keep these files safe: deleting an

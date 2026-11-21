@@ -475,6 +475,14 @@ const PAGE = String.raw`<!DOCTYPE html>
   .link { color: var(--accent2); text-decoration: none; cursor: pointer; }
   .muted { color: var(--muted); }
   .badge { display: inline-block; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; font-size: 12px; color: var(--muted); }
+  table.bots { width: 100%; border-collapse: collapse; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  table.bots th, table.bots td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+  table.bots th { color: var(--muted); font-weight: 600; }
+  .st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; background: var(--bg3); border: 1px solid var(--border); }
+  .st.online { border-color: var(--accent); color: var(--accent); }
+  .st.queued, .st.connecting, .st.pending { border-color: var(--accent2); color: var(--accent2); }
+  .st.failed, .st.blocked, .st.error { border-color: var(--danger); color: var(--danger); }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
 </style>
 </head>
 <body>
@@ -602,6 +610,9 @@ const PAGE = String.raw`<!DOCTYPE html>
             <div class="field"><label>Count</label><input id="fleet-count" value="3" style="width:70px"></div>
             <div class="field" style="flex:1"><label>Name prefix</label><input id="fleet-prefix" placeholder="Bot"></div>
           </div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>Club tag (auto-join after login)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
+          </div>
           <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Start</button></div>
         </div>
         <div class="panel">
@@ -618,11 +629,18 @@ const PAGE = String.raw`<!DOCTYPE html>
       <div class="panel">
         <h3>Command a bot</h3>
         <div class="row">
-          <div class="field"><label>Bot</label><input id="fleet-bot" value="1" style="width:60px"></div>
+          <div class="field"><label>Bot (ignored when All)</label><input id="fleet-bot" value="1" style="width:60px"></div>
           <div class="field"><label>Action</label><select id="fleet-action"></select></div>
           <div class="field" style="flex:1"><label>Extra args (e.g. --text "Hi" --club-tag #TAG)</label><input id="fleet-extra" placeholder="--text Hello"></div>
           <button class="primary" id="fleet-cmd">Send</button>
         </div>
+        <div class="row" style="margin-top:8px">
+          <label class="check"><input type="checkbox" id="fleet-all"> All bots — send the command to every bot in the fleet (e.g. join-club --club-tag)</label>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Bots</h3>
+        <div id="fleet-bots" class="outbox">no fleet status yet — start a fleet first</div>
       </div>
     </section>
 
@@ -980,14 +998,18 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('fleet-start').addEventListener('click', function () {
     var args = ['start', '--first', $('fleet-first').value || '1', '--count', $('fleet-count').value || '3'];
     if ($('fleet-prefix').value.trim()) args.push('--name-prefix', $('fleet-prefix').value.trim());
+    var club = $('fleet-clubtag').value.trim();
+    if (club) args.push('--club-tag', club);
     fleetRun(args, 'start');
   });
   $('fleet-cmd').addEventListener('click', function () {
-    var bot = $('fleet-bot').value || '1';
     var action = $('fleet-action').value;
     var extra = tokenizeLine($('fleet-extra').value);
-    var args = ['command', '--bot', bot, '--action', action].concat(extra);
-    fleetRun(args, 'command ' + action);
+    var args = ['command'];
+    if ($('fleet-all').checked) args.push('--all');
+    else args.push('--bot', $('fleet-bot').value || '1');
+    args.push('--action', action);
+    fleetRun(args.concat(extra), 'command ' + action + ($('fleet-all').checked ? ' (all bots)' : ''));
   });
 
   // splits a command line into tokens, honouring single/double quotes
@@ -1012,7 +1034,38 @@ const PAGE = String.raw`<!DOCTYPE html>
       $('fleet-status').textContent = pretty(j.result || j);
       $('fleet-status').className = 'outbox' + (j.ok ? '' : ' err');
       $('fleet-status-title').textContent = j.result && j.result.running ? 'Fleet status — running' : 'Fleet status — stopped';
+      renderBots(j.result);
     });
+  }
+
+  // one row per bot so you can watch many accounts at once
+  function renderBots(status) {
+    var box = $('fleet-bots');
+    if (!status || !status.bots || !status.bots.length) {
+      box.className = 'outbox';
+      box.textContent = status && status.bots && !status.bots.length ? 'no bots in fleet yet' : 'no fleet status yet — start a fleet first';
+      return;
+    }
+    var rows = status.bots.map(function (b) {
+      var ind = b.index;
+      var name = b.name || '-';
+      var tag = b.tag || '-';
+      var club = (b.club && b.club.tag) ? b.club.tag : (b.joined ? 'joined' : '-');
+      var err = b.clubError ? ' (' + b.clubError + ')' : '';
+      return '<tr>' +
+        '<td>#' + ind + '</td>' +
+        '<td class="st ' + b.status + '">' + b.status + '</td>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' + esc(tag) + '</td>' +
+        '<td>' + esc(club) + err + '</td>' +
+        '</tr>';
+    }).join('');
+    box.className = 'outbox bots';
+    box.innerHTML = '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function esc(v) {
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   // ------------------------- social & lobby forms -------------------------
