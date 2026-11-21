@@ -1,0 +1,55 @@
+{
+  "name": "nulls-headless-client",
+  "version": "0.3.4",
+  "private": true,
+  "description": "Headless Node.js client for the Nulls Brawl protocol: accounts, clubs, lobby and bot fleets.",
+  "license": "MIT",
+  "author": "Patrick-9936",
+  "homepage": "https://github.com/Patrick-9936/nulls-headless-client#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Patrick-9936/nulls-headless-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Patrick-9936/nulls-headless-client/issues"
+  },
+  "keywords": [
+    "nulls",
+    "brawl-stars",
+    "headless-client",
+    "game-protocol",
+    "bot-fleet",
+    "nodejs"
+  ],
+  "main": "Program.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node Program.js help",
+    "serve": "node server.js",
+    "check": "node --check server.js && node --check Program.js && node --check TUI.js && node --check lib/Client.js && node --check lib/CLI.js && node --check lib/i18n.js && node --check lib/Connect.js && node --check lib/Fleet.js && node --check tools/fleet.js && node --check tools/connect.js && node --check tools/i18n-check.js && node Program.js info && node tools/i18n-check.js && node --check tools/candidates.js && node --check tools/proxy-watch.js && node --check tools/test-session.js",
+    "lint": "eslint .",
+    "lint:eslint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test tests/*.test.js",
+    "update": "node tools/update.js",
+    "update:check": "node tools/update.js --check",
+    "update:watch": "node tools/update.js --watch",
+    "fleet": "node tools/fleet.js",
+    "features": "node Program.js features",
+    "bundle": "python3 tools/package_release.py",
+    "bundle:check": "python3 tools/package_release.py --check"
+  },
+  "dependencies": {
+    "blakejs": "^1.2.1",
+    "colors": "^1.4.0",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1"
+  }
+}
