@@ -707,9 +707,10 @@ const PAGE = String.raw`<!DOCTYPE html>
           </div>
           <div class="row">
             <div class="field" style="flex:1"><label>Club tag to auto-join after login</label><input id="fleet-clubtag" placeholder="#TAG"></div>
+            <div class="field"><label>Per-IP reuse</label><input id="fleet-reuse" value="5" style="width:52px"></div>
           </div>
           <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Launch bots</button></div>
-          <p class="hint">Each bot logs in (and joins the club) in background. Failed first logins are retried automatically. Start again with a higher count to add more bots.</p>
+          <p class="hint">Each bot logs in (and joins the club) in background. Failed first logins are retried automatically (fast, growing pauses). With a proxy pool, each proxy handles up to “Per-IP reuse” bots at once — so 3 proxies × reuse 5 = 15 parallel logins. Start again with a higher count to add more bots.</p>
         </div>
         <div class="panel">
           <h3>Quick actions</h3>
@@ -774,7 +775,7 @@ const PAGE = String.raw`<!DOCTYPE html>
           <div class="row">
             <label class="check"><input type="checkbox" id="px-use"> Use the pool for fleet logins (IP rotation per bot)</label>
           </div>
-          <p class="hint">When enabled, Launch bots adds <code>--proxy-pool-file</code> so every bot (and every reconnect) rotates to a different working proxy. Empty pool → bots fall back to your direct IP automatically, so the fleet never silently dies.</p>
+          <p class="hint">When enabled, Launch bots adds <code>--proxy-pool-file</code>. Each proxy handles up to <b>Per-IP reuse</b> bots at once (Fleet tab, default 5) and only switches when that IP fails, so a tiny pool still launches a big fleet fast. Empty pool → bots fall back to your direct IP automatically, so the fleet never silently dies.</p>
         </div>
       </div>
       <div class="panel">
@@ -1207,6 +1208,8 @@ const PAGE = String.raw`<!DOCTYPE html>
     if (club) args.push('--club-tag', club);
     if ($('px-use') && $('px-use').checked)
       args.push('--proxy-pool-file', $('px-file').value.trim() || 'working-proxies.json');
+    var reuse = parseInt($('fleet-reuse').value, 10);
+    if (reuse >= 1 && reuse <= 100) args.push('--proxy-reuse', String(reuse));
     fleetRun(args, 'start');
   });
   $('fleet-join-all').addEventListener('click', function () {

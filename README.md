@@ -146,7 +146,7 @@ new accounts. A single bot's error does not freeze the queue: the refusal is vis
 The first login of a brand-new bot (registration + nickname + re-login) is given up to
 `--slot-connect-timeout` (default 180 s, was 90 s). A bot that fails for a transient reason
 (timeout, dropped connection) is **re-queued automatically** — up to `--max-slot-retries`
-(default 8) retries with a growing pause (`--slot-retry-backoff-ms`, default 15 s), so a busy
+(default 8) retries with a growing pause (`--slot-retry-backoff-ms`, default 3 s), so a busy
 server no longer leaves most of a big fleet stuck in `failed`. Persistent refusals
 (e.g. `blocked`) are not retried automatically; `retry` replays those manually.
 
@@ -282,6 +282,13 @@ node tools/proxy-watch.js stop
 `--free-proxies` runs one `once` pass (unless the pool is < 10 min old) and adds the pool
 automatically. `working-proxies.json` is (re)written on every batch; a proxy is added only if it
 answered the game server with a correct `ServerHello`, so the pool only contains reachable IPs.
+
+One proxy is **reused for several accounts at once** (`--proxy-reuse`, default 5): the pool is no
+longer 1 IP = 1 bot. Bots are grouped so a proxy handles up to N simultaneous logins, and when a
+proxy fails a bot automatically moves to the next proxy in the pool. With a pool of 3 proxies and
+the default reuse, `fleet start` auto-raises concurrency to 3×5 = 15 parallel logins; override it
+with `--concurrency` (supported up to 200). If the pool is empty or missing, everything falls back
+to the direct IP.
 
 Single proxy without rotation:
 
