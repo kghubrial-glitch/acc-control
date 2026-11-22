@@ -12,10 +12,11 @@ function parseArgs(argv) {
 }
 
 function formatTable(entries) {
-  const headers = ['ИНДЕКС', 'ТЕГ', 'НИК', 'ТОКЕН', 'КЛУБ', 'ФАЙЛ'];
+  const headers = ['ИНДЕКС', 'ТЕГ', 'ID', 'НИК', 'ТОКЕН', 'КЛУБ', 'ФАЙЛ'];
   const rows = entries.map((entry) => [
     entry.index === null ? '-' : String(entry.index),
     entry.tag || '-',
+    entry.id || '-',
     entry.name || '-',
     entry.error ? 'БИТЫЙ' : entry.hasToken ? 'да' : 'нет',
     entry.club || '-',
@@ -34,6 +35,9 @@ function main() {
   const { options, positional } = parseArgs(process.argv.slice(2));
   const command = positional[0] || 'list';
   const json = !!options.json;
+  // Проставляем ID при каждом обращении: новые/старые account.json получают свой
+  // уникальный ID, по которому можно управлять ботом (--id / --account @id / @id).
+  Accounts.ensureIds(ROOT);
   if (command === 'list') {
     const registry = Accounts.read(ROOT);
     let entries = registry.accounts;

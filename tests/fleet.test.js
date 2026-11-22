@@ -80,6 +80,7 @@ test('форма и содержимое fleet-status.json не изменили
       'first',
       'requested',
       'clubTag',
+      'domination',
       'states',
       'creationPaused',
       'bots',

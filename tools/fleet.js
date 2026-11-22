@@ -238,8 +238,12 @@ function selectionSize(options = {}, status = {}) {
   const available = Array.isArray(status.bots) && status.bots.length
     ? status.bots.map((bot) => Number(bot.index)).filter(Number.isInteger)
     : accountIndexes();
+  let byId = null;
+  if (Array.isArray(status.bots)) {
+    byId = new Map(status.bots.filter((bot) => bot.id).map((bot) => [bot.id, Number(bot.index)]));
+  }
   try {
-    return Selection.parseSelection(String(spec), available).length || 1;
+    return Selection.parseSelection(String(spec), available, byId).length || 1;
   } catch {
     return 1;
   }
@@ -331,9 +335,19 @@ async function main() {
     return;
   }
   if (
-    ['command', 'retry-registration', 'pause', 'resume', 'retry', 'club-fill', 'club-cancel', 'club-queue'].includes(
-      command,
-    )
+    [
+      'command',
+      'retry-registration',
+      'pause',
+      'resume',
+      'retry',
+      'club-fill',
+      'club-cancel',
+      'club-queue',
+      'club-dominate',
+      'club-dominate-status',
+      'club-dominate-cancel',
+    ].includes(command)
   ) {
     if (!ownedPID()) throw new Error('Сначала запустите fleet');
     const action =
@@ -350,6 +364,8 @@ async function main() {
       bot: options.bot,
       all: options.all,
       select: options.bots || options.select || undefined,
+      id: options.id || undefined,
+      ids: options.ids ? String(options.ids).split(',').map((s) => s.trim()).filter(Boolean) : undefined,
       action,
       args: options,
       queue: !!(options.queue || options.fill) || action === 'club-fill',
@@ -357,9 +373,11 @@ async function main() {
     const result = path.join(ROOT, '.runtime', 'results', `${id}.json`);
     // Действие ждёт «первого входа» ботов (login → потом действие), поэтому ориентир:
     // base timeout + волны логинов/действий. Одна волна ≈ 8 ботов командой параллельно.
-    // Очередь в клуб (club-fill/club-cancel/club-queue) отвечает сразу.
-    const queued = ['club-fill', 'club-cancel', 'club-queue'].includes(action);
-    const requested = queued ? 1 : selectionSize(options, status);
+    // Очередь в клуб и доминация отвечают сразу.
+    const instant = ['club-fill', 'club-cancel', 'club-queue', 'club-dominate', 'club-dominate-status', 'club-dominate-cancel'].includes(
+      action,
+    );
+    const requested = instant ? 1 : selectionSize(options, status);
     const deadline =
       Date.now() + Number(options.timeout || 60000) + (requested > 1 ? Math.ceil(requested / 8) * 5000 : 0);
     while (!fs.existsSync(result)) {
@@ -373,7 +391,10 @@ async function main() {
       process.exitCode = 1;
     return;
   }
-  if (command !== 'run') throw new Error('fleet: start|run|status|stop|command|retry|pause|resume|club-fill|club-cancel|club-queue');
+  if (command !== 'run')
+    throw new Error(
+      'fleet: start|run|status|stop|command|retry|pause|resume|club-fill|club-cancel|club-queue|club-dominate|club-dominate-status|club-dominate-cancel',
+    );
   if (ownedPID()) throw new Error('Процесс уже запущен');
   const log = new FleetLog(LOG, logOptions(options));
   log.rotateIfNeeded();

@@ -639,6 +639,7 @@ const PAGE = String.raw`<!DOCTYPE html>
   .st.failed, .st.blocked, .st.error { border-color: var(--danger); color: var(--danger); }
   .check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
   .botact { display: flex; gap: 4px; flex-wrap: wrap; }
+  .botid { font-size: 11px; color: var(--accent); user-select: all; }
   .botact button { padding: 2px 8px; font-size: 11px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; cursor: pointer; white-space: nowrap; }
   .botact button:hover { border-color: var(--accent2); color: var(--accent); }
   .pill.warn { border-color: var(--warn); color: var(--warn); }
@@ -658,6 +659,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       <button data-tab="terminal"><span>Terminal</span></button>
       <button data-tab="accounts"><span>Accounts</span></button>
       <button data-tab="fleet"><span>Fleet</span></button>
+      <button data-tab="domination"><span>Club Domination</span></button>
       <button data-tab="proxy"><span>Proxies</span></button>
       <button data-tab="social"><span>Club &amp; Friends</span></button>
       <button data-tab="lobby"><span>Lobby &amp; Battle</span></button>
@@ -766,7 +768,7 @@ const PAGE = String.raw`<!DOCTYPE html>
 
     <section id="tab-fleet" class="tab">
       <h2>Fleet</h2>
-      <p class="subtitle">Your saved accounts are <b>reused automatically</b> (stored tokens — nothing is re-created). Only indexes you add make brand-new accounts.</p>
+      <p class="subtitle">Your saved accounts are <b>reused automatically</b> (stored tokens — nothing is re-created). Only indexes you add make brand-new accounts. Every account has a unique <b>ID</b> (shown in the bots table) — use it anywhere a selection is expected, e.g. <code>@id</code>.</p>
       <div class="cards" id="fleet-cards"></div>
       <div id="fleet-paused-note" class="outbox err" style="display:none"></div>
       <div id="fleet-stale-note" class="outbox err" style="display:none"></div>
@@ -859,7 +861,7 @@ const PAGE = String.raw`<!DOCTYPE html>
             <option value="last:10">Last 10</option>
             <option value="custom">Custom… (type below)</option>
           </select></div>
-          <div class="field" style="flex:1"><label>Or exact: <code>1,3,5-10</code> · <code>first:10</code> · <code>random:20</code></label><input id="fleet-cmd-select" placeholder="1,3,5-10"></div>
+          <div class="field" style="flex:1"><label>Or exact: <code>1,3,5-10</code> · <code>first:10</code> · <code>random:20</code> · <code>@id</code></label><input id="fleet-cmd-select" placeholder="1,3,5-10"></div>
         </div>
         <div class="row">
           <div class="field" style="flex:1"><label>Action</label><select id="fleet-action"></select></div>
@@ -871,6 +873,53 @@ const PAGE = String.raw`<!DOCTYPE html>
       <div class="panel">
         <h3>5 · Bots</h3>
         <div id="fleet-bots" class="outbox">no fleet status yet — start a fleet first</div>
+      </div>
+    </section>
+
+    <section id="tab-domination" class="tab">
+      <h2>Club Domination</h2>
+      <p class="subtitle">Turn every group of accounts into its own clan: <b>1 account creates the clan</b>, the rest of the group <b>join it rapidly</b>. Repeat until every selected account is inside a clan.</p>
+      <div class="cards" id="dom-cards"></div>
+      <div class="grid2">
+        <div class="panel">
+          <h3>1 · Plan</h3>
+          <p class="hint">Example: <b>98 accounts</b> with <b>5 per clan</b> → 19 full clans (5 members each) + 1 last clan of 3. A random account in each group creates the clan, the other 4 join right away.</p>
+          <div class="row">
+            <div class="field"><label>Members per clan</label><input id="dom-size" value="5" style="width:80px"></div>
+            <div class="field"><label>Clans in parallel</label><input id="dom-parallel" value="1" style="width:80px"></div>
+            <div class="field"><label>Join at once</label><input id="dom-join-concurrency" value="4" style="width:80px" title="How many joiners act simultaneously inside one clan"></div>
+            <div class="field"><label>Join attempts</label><input id="dom-join-attempts" value="4" style="width:90px"></div>
+            <div class="field"><label>Retry (ms)</label><input id="dom-join-retry" value="1500" style="width:90px"></div>
+          </div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>Which accounts</label><select id="dom-preset">
+              <option value="">All saved accounts</option>
+              <option value="first:10">First 10</option>
+              <option value="first:20">First 20</option>
+              <option value="first:50">First 50</option>
+              <option value="custom">Custom… (type below)</option>
+            </select></div>
+            <div class="field" style="flex:1"><label>Or exact: <code>1-98</code> · <code>@id1,@id2</code> · <code>first:98</code></label><input id="dom-select" placeholder="e.g. 1-98"></div>
+            <div class="field" style="flex:1"><label>Clan name prefix</label><input id="dom-prefix" value="Nulls Squad"></div>
+          </div>
+          <div class="muted" id="dom-plan" style="margin-top:6px;font-size:13px"></div>
+          <div class="row" style="margin-top:10px;gap:6px">
+            <button class="primary" id="dom-start">Start domination</button>
+            <button class="ghost" id="dom-status">Status</button>
+            <button class="ghost" id="dom-cancel">Cancel run</button>
+          </div>
+          <div id="dom-result" class="outbox" style="margin-top:10px;display:none"></div>
+        </div>
+        <div class="panel">
+          <h3>2 · Progress</h3>
+          <ul class="hint" style="line-height:1.7">
+            <li>Run a fleet first (<b>Fleet</b> tab → Launch fleet).</li>
+            <li>Accounts that are already in a club get <b>left automatically</b> before they create or join.</li>
+            <li>Clan leaders are picked <b>randomly</b> inside each group.</li>
+            <li>Clubs are capped at 50 members, so a group larger than that may leave some joiners unserved.</li>
+          </ul>
+          <div id="dom-statusbox" class="outbox">idle — start a domination run</div>
+        </div>
       </div>
     </section>
 
@@ -1036,6 +1085,7 @@ const PAGE = String.raw`<!DOCTYPE html>
     qsAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === 'tab-' + name); });
     if (name === 'dashboard') refreshState();
     if (name === 'fleet') refreshFleet();
+    if (name === 'domination') refreshDomination();
     if (name === 'accounts') refreshRegistry();
     if (name === 'config') loadConfig();
   }
@@ -1719,7 +1769,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       var file = b.file || ('bot-' + ind + '.json');
       var isReused = b.file && b.file !== ('bot-' + ind + '.json');
       return '<tr>' +
-        '<td>#' + ind + '</td>' +
+        '<td>#' + ind + (b.id ? '<br><code class="botid">' + esc(b.id) + '</code>' : '') + '</td>' +
         '<td class="st ' + b.status + '">' + b.status + '</td>' +
         '<td>' + esc(name) + '</td>' +
         '<td>' + esc(tag) + '</td>' +
@@ -1743,7 +1793,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       '</div>';
     box.className = 'outbox bots';
     box.innerHTML = summary +
-      '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>account</th><th>file</th><th>info</th><th>actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      '<table class="bots"><thead><tr><th># · id</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>account</th><th>file</th><th>info</th><th>actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   // После внезапной перезагрузки хоста fleet.pid/status остаются, а процесс мёртв:
@@ -1797,6 +1847,103 @@ const PAGE = String.raw`<!DOCTYPE html>
     }
   });
   refreshFleet();
+
+  // ------------------------- club domination -------------------------
+  function domArgv() {
+    var argv = ['club-dominate'];
+    var spec = ($('dom-select').value || '').trim();
+    if (!spec) spec = $('dom-preset').value || '';
+    if (spec && spec !== 'all' && spec !== '*') argv.push('--bots', spec);
+    var size = parseInt($('dom-size').value, 10);
+    var parallel = parseInt($('dom-parallel').value, 10);
+    var jc = parseInt($('dom-join-concurrency').value, 10);
+    var ja = parseInt($('dom-join-attempts').value, 10);
+    var jr = parseInt($('dom-join-retry').value, 10);
+    var prefix = ($('dom-prefix').value || '').trim();
+    if (Number.isFinite(size) && size > 0) argv.push('--dominate-size', String(size));
+    if (Number.isFinite(parallel) && parallel > 1) argv.push('--dominate-parallel', String(parallel));
+    if (Number.isFinite(jc) && jc > 0 && jc !== 4) argv.push('--dominate-join-concurrency', String(jc));
+    if (Number.isFinite(ja) && ja > 0 && ja !== 4) argv.push('--dominate-join-attempts', String(ja));
+    if (Number.isFinite(jr) && jr >= 100) argv.push('--dominate-join-retry-ms', String(jr));
+    if (prefix) argv.push('--dominate-name', prefix);
+    return argv;
+  }
+  function domRun(argv, label) {
+    var out = $('dom-result');
+    out.style.display = 'block';
+    out.textContent = label + ' …';
+    out.className = 'outbox warn';
+    api('POST', '/api/fleet', { args: argv, timeout: 60000 }).then(function (j) {
+      out.textContent = pretty(j.result || j);
+      out.className = 'outbox' + (j.ok ? '' : ' err');
+      refreshDomination();
+    });
+  }
+  function updateDomPlan() {
+    var el = $('dom-plan');
+    if (!el) return;
+    var size = Math.max(2, parseInt($('dom-size').value || '5', 10) || 5);
+    var spec = ($('dom-select').value || '').trim() || $('dom-preset').value || '';
+    var files = (STATE.state && STATE.state.accountFiles) || [];
+    var total = files.length;
+    var m = /first:(\d+)/.exec(spec) || /last:(\d+)/.exec(spec) || /(\d+)/.exec(spec);
+    if (m && total) total = Math.min(total, parseInt(m[1], 10));
+    var clans = total ? Math.max(1, Math.ceil(total / size)) : 0;
+    el.textContent = total
+      ? '≈ ' + total + ' selected account(s) → ' + clans + ' clan(s) of ≤' + size + ' members'
+      : 'No saved accounts yet — launch the fleet first.';
+  }
+  var domTimer = null;
+  function drawDomination(state) {
+    var el = $('dom-statusbox');
+    if (!el) return;
+    updateDomPlan();
+    var d = state && state.fleet && state.fleet.domination;
+    if (!d) {
+      $('dom-cards').innerHTML = '';
+      el.className = 'outbox';
+      el.textContent = 'idle — start a domination run';
+      return;
+    }
+    var cards = '';
+    cards += card('State', d.state, d.state === 'running' ? '' : 'small');
+    cards += card('Clans', String(d.created || 0) + '/' + (d.planned || 0), '');
+    cards += card('Accounts', String(d.total || 0), '');
+    cards += card('In clans', String(d.joined || 0), smallOn(d.joined));
+    cards += card('Failed', String(d.failed || 0), d.failed ? 'small off' : 'small');
+    $('dom-cards').innerHTML = cards;
+    if (Array.isArray(d.groups) && d.groups.length) {
+      var rows = d.groups.map(function (g) {
+        return '<tr><td>' + g.n + '</td><td class="st ' + g.state + '">' + g.state + '</td><td>' + esc(g.name || '—') + '</td><td><code>' + esc(g.tag || '—') + '</code></td><td>#' + (g.leader == null ? '—' : g.leader) + '</td><td>' + g.joined + '/' + g.members + '</td><td>' + (g.failed || '') + '</td><td class="muted">' + esc(g.error || '') + '</td></tr>';
+      }).join('');
+      el.className = 'outbox bots';
+      el.innerHTML = '<table class="bots"><thead><tr><th>#</th><th>state</th><th>name</th><th>tag</th><th>leader</th><th>joined</th><th>failed</th><th>info</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    } else {
+      el.className = 'outbox';
+      el.textContent = 'state: ' + d.state + (d.error ? ' — ' + d.error : '');
+    }
+    if (domTimer) clearTimeout(domTimer);
+    if (d.state === 'running') {
+      domTimer = setTimeout(function () {
+        api('GET', '/api/state').then(function (j) {
+          if (j.state) { STATE.state = j.state; drawDomination(j.state); }
+        });
+      }, 2000);
+    }
+  }
+  function refreshDomination() {
+    if (!STATE.state || !STATE.state.fleet) {
+      api('GET', '/api/state').then(function (j) { if (j.state) { STATE.state = j.state; drawDomination(j.state); } });
+    } else drawDomination(STATE.state);
+  }
+  ['dom-size', 'dom-select', 'dom-preset'].forEach(function (id) {
+    var el = $(id);
+    if (el) el.addEventListener('input', updateDomPlan);
+  });
+  $('dom-start').addEventListener('click', function () { domRun(domArgv(), 'Starting domination'); });
+  $('dom-status').addEventListener('click', function () { domRun(['club-dominate-status'], 'Domination status'); });
+  $('dom-cancel').addEventListener('click', function () { domRun(['club-dominate-cancel'], 'Cancelling'); });
+  updateDomPlan();
 
   function esc(v) {
     return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
