@@ -576,6 +576,12 @@ const PAGE = String.raw`<!DOCTYPE html>
   .st.queued, .st.connecting, .st.pending { border-color: var(--accent2); color: var(--accent2); }
   .st.failed, .st.blocked, .st.error { border-color: var(--danger); color: var(--danger); }
   .check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .botact { display: flex; gap: 4px; flex-wrap: wrap; }
+  .botact button { padding: 2px 8px; font-size: 11px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  .botact button:hover { border-color: var(--accent2); color: var(--accent); }
+  .pill.warn { border-color: var(--warn); color: var(--warn); }
+  .reg-yes { color: var(--accent); }
+  .reg-no { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -611,6 +617,10 @@ const PAGE = String.raw`<!DOCTYPE html>
       <div class="panel">
         <h3>Fleet status <span class="badge" id="dash-fleet-badge">-</span></h3>
         <div id="dash-fleet" class="outbox">loading…</div>
+      </div>
+      <div class="panel">
+        <h3>Fleet bots — per-bot control <span class="muted" id="dash-bots-note" style="font-size:12px"></span></h3>
+        <div id="dash-bots" class="outbox">loading…</div>
       </div>
       <div class="panel">
         <h3>fleet.log tail</h3>
@@ -691,27 +701,29 @@ const PAGE = String.raw`<!DOCTYPE html>
 
     <section id="tab-fleet" class="tab">
       <h2>Fleet</h2>
-      <p class="subtitle">Background bot fleet. Same commands as <code>node tools/fleet.js …</code>.</p>
+      <p class="subtitle">Background bot fleet. Existing accounts are <b>logged back in</b> with their stored token — only missing files create brand-new bots.</p>
+      <div class="cards" id="fleet-cards"></div>
+      <div id="fleet-paused-note" class="outbox err" style="display:none"></div>
       <div class="panel">
         <h3 id="fleet-status-title">Fleet status</h3>
         <div id="fleet-status" class="outbox">loading…</div>
       </div>
       <div class="grid2">
         <div class="panel">
-          <h3>1 · Create accounts &amp; log in</h3>
-          <p class="hint">Every bot registers (if new) and logs in <b>first</b>. Nothing else runs until the login is confirmed — step 2 waits for it automatically.</p>
+          <h3>1 · Launch fleet</h3>
+          <p class="hint">Bots that already have an account file log back in automatically (stored token — they are <b>not</b> new). New files are created and registered first, then everything else waits for login.</p>
           <div class="row">
             <div class="field"><label>From #</label><input id="fleet-first" value="1" style="width:64px"></div>
             <div class="field"><label>Bots</label><input id="fleet-count" value="3" style="width:64px"></div>
             <div class="field"><label>Parallel logins</label><input id="fleet-concurrency" value="6" style="width:64px"></div>
-            <div class="field" style="flex:1"><label>Name prefix</label><input id="fleet-prefix" placeholder="Bot"></div>
+            <div class="field" style="flex:1"><label>Name prefix (new bots only)</label><input id="fleet-prefix" placeholder="Bot"></div>
           </div>
           <div class="row">
             <div class="field" style="flex:1"><label>Auto-join club tag after login (optional — one-click create + join)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
             <div class="field"><label>Per-IP reuse</label><input id="fleet-reuse" value="5" style="width:52px"></div>
           </div>
-          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Create accounts &amp; log in</button></div>
-          <p class="hint">Failed first logins retry fast with growing pauses. With a proxy pool, each proxy handles up to “Per-IP reuse” bots at once (3 proxies × reuse 5 = 15 parallel logins). Starting again with a higher count adds more bots.</p>
+          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Launch fleet — log in / create</button></div>
+          <p class="hint">Failed first logins retry fast with growing pauses. With a proxy pool, each proxy handles up to “Per-IP reuse” bots at once (3 proxies × reuse 5 = 15 parallel logins). Starting again with a higher count logs the same bots back in and adds new ones.</p>
         </div>
         <div class="panel">
           <h3>2 · After login</h3>
@@ -722,6 +734,7 @@ const PAGE = String.raw`<!DOCTYPE html>
           <div class="row" style="margin-top:8px">
             <button class="primary" id="fleet-join-all">Join club — all bots</button>
             <button class="ghost" id="fleet-leave-all">Leave club — all bots</button>
+            <button class="ghost" id="fleet-reconnect-all">Re-login all (stored tokens)</button>
           </div>
           <div class="row" style="margin-top:12px">
             <button id="fleet-retry">Retry failed</button>
@@ -730,7 +743,7 @@ const PAGE = String.raw`<!DOCTYPE html>
             <button id="fleet-stop">Stop</button>
             <button id="fleet-status-btn">Status</button>
           </div>
-          <p class="hint">Retry replays failed/blocked bots. The club field stays in sync with step 1.</p>
+          <p class="hint">Retry replays failed/blocked bots. Re-login closes and reconnects every bot with its own token — the fastest way back after Stop/Pause.</p>
         </div>
       </div>
       <div class="panel">
@@ -945,6 +958,14 @@ const PAGE = String.raw`<!DOCTYPE html>
       $('dash-fleet-badge').textContent = s.fleetRunning ? 'running (PID ' + (f.pid || '?') + ')' : 'stopped';
       $('dash-fleet-badge').className = 'badge ' + (s.fleetRunning ? 'pill on' : 'pill off');
       $('dash-fleet').textContent = pretty(f);
+      if (s.fleetRunning && f.metrics) {
+        cards += card('Fleet online', String(f.metrics.online || 0), '');
+        cards += card('Registered', String(f.metrics.registered || 0), 'small');
+      }
+      $('dash-cards').innerHTML = cards;
+      var ds = $('dash-bots-note');
+      if (ds) ds.textContent = s.fleetRunning ? '' : '— fleet stopped; launch it on the Fleet tab to log the same bots back in';
+      renderBots(s.fleetRunning ? f : null, $('dash-bots'));
       $('dash-log').textContent = s.fleetLogTail.slice(-80).join('\n') || '(empty)';
 
       // (re)fill the account-language selector now that the locale list is known
@@ -1114,8 +1135,11 @@ const PAGE = String.raw`<!DOCTYPE html>
   }
 
   // ------------------------- fleet -------------------------
-  var FLEET_ACTIONS = ['login', 'create-account', 'account-region', 'friend', 'accept-friend', 'decline-friend', 'remove-friend', 'friends', 'friends-online', 'spectate', 'brawl-tv-channels', 'brawl-tv-next', 'brawl-tv', 'stop-spectate', 'create-club', 'join-club', 'leave-club', 'club-info', 'club-recommendations', 'club-members', 'club-online', 'club-chat', 'club-stream', 'club-requests', 'club-settings', 'club-description', 'club-trophies', 'club-role', 'club-promote', 'club-demote', 'club-kick', 'club-invite', 'club-request', 'club-answer', 'create-room', 'join-room', 'leave-room', 'team-info', 'chat', 'ready', 'unready', 'matchmake', 'cancel-matchmake', 'team-mode', 'team-map', 'team-event', 'team-location', 'team-invite', 'team-answer', 'invite-answer', 'accept-invite', 'decline-invite', 'team-request', 'team-cancel-request', 'team-request-answer', 'team-cancel-invite', 'team-kick', 'team-advertise', 'team-status', 'invitations', 'team-brawler', 'team-bot', 'practice', 'player-status', 'top'];
+  var FLEET_ACTIONS = ['reconnect', 'login', 'create-account', 'account-region', 'friend', 'accept-friend', 'decline-friend', 'remove-friend', 'friends', 'friends-online', 'spectate', 'brawl-tv-channels', 'brawl-tv-next', 'brawl-tv', 'stop-spectate', 'create-club', 'join-club', 'leave-club', 'club-info', 'club-recommendations', 'club-members', 'club-online', 'club-chat', 'club-stream', 'club-requests', 'club-settings', 'club-description', 'club-trophies', 'club-role', 'club-promote', 'club-demote', 'club-kick', 'club-invite', 'club-request', 'club-answer', 'create-room', 'join-room', 'leave-room', 'team-info', 'chat', 'ready', 'unready', 'matchmake', 'cancel-matchmake', 'team-mode', 'team-map', 'team-event', 'team-location', 'team-invite', 'team-answer', 'invite-answer', 'accept-invite', 'decline-invite', 'team-request', 'team-cancel-request', 'team-request-answer', 'team-cancel-invite', 'team-kick', 'team-advertise', 'team-status', 'invitations', 'team-brawler', 'team-bot', 'practice', 'player-status', 'top'];
   var ACTION_HINTS = {
+    reconnect: 'closes the bot and logs back in with its stored token — no new account is created',
+    login: '(re)connects using the account’s stored token — nothing to pass for an existing account',
+    'create-account': 'only for a brand-new account (empty file); --name is saved and reused on later logins',
     'account-region': '--region <code> (eu / us / ru / asia…)',
     'friend': '--tag #PLAYER_TAG',
     'accept-friend': '--tag #PLAYER_TAG',
@@ -1224,6 +1248,9 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('fleet-leave-all').addEventListener('click', function () {
     fleetRun(['command', '--all', '--action', 'leave-club'], 'leave-club → all bots (waits for login)');
   });
+  $('fleet-reconnect-all').addEventListener('click', function () {
+    fleetRun(['command', '--all', '--action', 'reconnect'], 're-login → all bots with stored tokens');
+  });
 
   // ------------------------- proxies (free IP rotation) -------------------------
   var PX_KEY = 'nullsweb.px';
@@ -1316,56 +1343,138 @@ const PAGE = String.raw`<!DOCTYPE html>
     return out;
   }
 
+  var fleetRefreshTimer = null;
   function refreshFleet() {
     api('POST', '/api/fleet', { args: ['status'], timeout: 15000 }).then(function (j) {
-      $('fleet-status').textContent = pretty(j.result || j);
+      var status = j.result || j;
+      $('fleet-status').textContent = pretty(status);
       $('fleet-status').className = 'outbox' + (j.ok ? '' : ' err');
-      $('fleet-status-title').textContent = j.result && j.result.running ? 'Fleet status — running' : 'Fleet status — stopped';
-      renderBots(j.result);
+      $('fleet-status-title').textContent = status && status.running ? 'Fleet status — running' : 'Fleet status — stopped';
+      renderFleetCards(status);
+      renderBots(status);
     });
+    // Живой дашборд: статус сам обновляется, пока открыт Fleet.
+    if (fleetRefreshTimer) clearTimeout(fleetRefreshTimer);
+    fleetRefreshTimer = setTimeout(function () {
+      if ($('tab-fleet').classList.contains('active')) refreshFleet();
+    }, 5000);
   }
 
+  function renderFleetCards(status) {
+    var el = $('fleet-cards');
+    if (!status) return;
+    var m = status.metrics || {};
+    var states = status.states || {};
+    var online = states.online || 0, pending = (states.queued || 0) + (states.connecting || 0) + (states['joining-club'] || 0);
+    var failed = (states.failed || 0) + (states.blocked || 0);
+    var rtt = Number.isFinite(m.avgRttMs) ? Math.round(m.avgRttMs) + ' ms' : '-';
+    var login = Number.isFinite(m.avgLoginMs) ? Math.round(m.avgLoginMs / 1000) + ' s' : '-';
+    var cards = '';
+    cards += card('Fleet', status.running ? 'running' : 'stopped', status.running ? '' : 'small');
+    cards += card('Bots', String(status.requested || 0), '');
+    cards += card('Online', String(online), smallOn(online));
+    cards += card('Pending', String(pending), smallOn(online));
+    cards += card('Failed', String(failed), failed ? 'small off' : 'small');
+    cards += card('Registered', String(m.registered || 0), 'small');
+    cards += card('Club', String(states['joining-club'] || 0) + ' on', 'small');
+    cards += card('RTT', rtt, 'small');
+    cards += card('Avg login', login, 'small');
+    el.innerHTML = cards;
+    var paused = status.creationPaused || (status.paused ? 'Флот приостановлен' : null);
+    var note = $('fleet-paused-note');
+    if (paused) {
+      note.style.display = 'block';
+      note.textContent = 'Fleet is paused — bots are held. Press Resume (step 2) to continue. Launching again logs the same bots back in; it never recreates them.';
+    } else note.style.display = 'none';
+  }
+  function smallOn(v) { return v > 0 ? '' : 'small'; }
+
   // one row per bot so you can watch many accounts at once
-  function renderBots(status) {
-    var box = $('fleet-bots');
+  function renderBots(status, boxEl) {
+    var box = boxEl || $('fleet-bots');
+    var stopped = !status || !status.running;
     if (!status || !status.bots || !status.bots.length) {
       box.className = 'outbox';
-      box.textContent = status && status.bots && !status.bots.length ? 'no bots in fleet yet' : 'no fleet status yet — start a fleet first';
+      box.textContent = stopped
+        ? 'No fleet exists yet — use “Launch fleet” (step 1). Existing bots are logged back in automatically with their stored token.'
+        : 'no bots in fleet yet';
       return;
     }
-    var counts = { online: 0, ok: 0, failed: 0, queued: 0 };
-    status.bots.forEach(function (b) {
-      if (['online', 'battle', 'in-battle', 'spectating'].includes(b.status)) counts.online++;
-      if (b.status === 'failed' || b.status === 'blocked') counts.failed++;
-      if (b.status === 'queued' || b.status === 'connecting' || b.status === 'joining-club') counts.queued++;
-    });
-    var summary =
-      '<div class="row" style="margin-bottom:8px;gap:6px">' +
-      '<span class="badge">total ' + status.bots.length + '</span>' +
-      '<span class="pill on">online ' + counts.online + '</span>' +
-      '<span class="pill">pending ' + counts.queued + '</span>' +
-      '<span class="pill off">failed ' + counts.failed + '</span>' +
-      '</div>';
     var rows = status.bots.map(function (b) {
       var ind = b.index;
       var name = b.name || '-';
       var tag = b.tag || '-';
       var club = (b.club && b.club.tag) ? b.club.tag : (b.joined ? 'joined' : '-');
       var err = b.clubError ? ' (club: ' + b.clubError + ')' : '';
-      var info = esc(err || b.error || '') + (b.attempts > 1 ? ' · ' + b.attempts + ' tries' : '');
+      var info = esc(err || b.error || '');
+      if (b.attempts > 1) info += (info ? ' · ' : '') + b.attempts + ' tries';
+      if (Number.isFinite(b.rttMs)) info += (info ? ' · ' : '') + Math.round(b.rttMs) + 'ms';
+      var reg = b.registered ? '<span class="reg-yes" title="has a saved token">✓ token</span>' : '<span class="reg-no" title="empty file — will be created">no token</span>';
+      var acts = '<span class="botact">' +
+        '<button data-ai="' + ind + '" data-a="reconnect" title="relogin with stored token">Relogin</button>' +
+        '<button data-ai="' + ind + '" data-a="join-club" title="join club tag from step 2">Join</button>' +
+        '<button data-ai="' + ind + '" data-a="leave-club">Leave</button>' +
+        '<button data-ai="' + ind + '" data-a="chat" title="send a club chat">Chat</button>' +
+        '<button data-ai="' + ind + '" data-a="info" title="show account details">Info</button>' +
+        '</span>';
       return '<tr>' +
         '<td>#' + ind + '</td>' +
         '<td class="st ' + b.status + '">' + b.status + '</td>' +
         '<td>' + esc(name) + '</td>' +
         '<td>' + esc(tag) + '</td>' +
         '<td>' + esc(club) + '</td>' +
-        '<td class="muted">' + esc(info) + '</td>' +
+        '<td>' + reg + '</td>' +
+        '<td class="muted">' + info + '</td>' +
+        '<td>' + acts + '</td>' +
         '</tr>';
     }).join('');
+    var total = status.bots.length;
+    var on = status.bots.filter(function (b) { return ['online', 'battle', 'in-battle', 'spectating'].includes(b.status); }).length;
+    var fail = status.bots.filter(function (b) { return b.status === 'failed' || b.status === 'blocked'; }).length;
+    var pend = total - on - fail;
+    var summary =
+      '<div class="row" style="margin-bottom:8px;gap:6px">' +
+      '<span class="badge">bots ' + total + '</span>' +
+      '<span class="pill on">online ' + on + '</span>' +
+      '<span class="pill">pending ' + pend + '</span>' +
+      '<span class="pill off">failed ' + fail + '</span>' +
+      '</div>';
     box.className = 'outbox bots';
     box.innerHTML = summary +
-      '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>info</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>account</th><th>info</th><th>actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
+
+  // Per-bot quick actions — each bot acts independently (its own login, its own IP).
+  function botAct(ind, action, label, args) {
+    var extra = args || {};
+    var argv = ['command', '--bot', String(ind), '--action', action];
+    for (var k in extra) argv.push('--' + k, String(extra[k]));
+    fleetRun(argv, label || ('bot #' + ind + ' → ' + action));
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('button[data-ai]') : null;
+    if (!btn) return;
+    var ind = btn.getAttribute('data-ai');
+    var action = btn.getAttribute('data-a');
+    if (action === 'chat') {
+      var text = window.prompt('Chat text for bot #' + ind + ':', '');
+      if (text === null) return;
+      botAct(ind, action, 'bot #' + ind + ' → chat', { text: text });
+    } else if (action === 'join-club') {
+      var tag = $('fleet-qclub').value.trim();
+      if (!tag) { $('fleet-status').textContent = 'Enter a club tag in step 2 first (e.g. #ABC …).'; $('fleet-status').className = 'outbox err'; return; }
+      botAct(ind, action, 'bot #' + ind + ' → join-club', { 'club-tag': tag });
+    } else if (action === 'info') {
+      api('POST', '/api/fleet', { args: ['status'], timeout: 15000 }).then(function (j) {
+        var st = (j.result || j);
+        var b = (st.bots || []).filter(function (x) { return String(x.index) === String(ind); })[0];
+        window.alert('Bot #' + ind + '\n\n' + pretty(b || st));
+      });
+    } else {
+      botAct(ind, action, 'bot #' + ind + ' → ' + action);
+    }
+  });
+  refreshFleet();
 
   function esc(v) {
     return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

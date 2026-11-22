@@ -3,7 +3,7 @@
   "cli.connect.bindSkipped": "Nulls Connect: تم تخطي الربط ({reason})",
   "cli.error.accountExists": "الحساب موجود بالفعل. اختر مسار --account جديدًا؛ القديم محفوظ",
   "cli.error.nameLocked": "إعادة تسمية لاعب موجود غير مدعومة: --name يضبط الاسم فقط عند إنشاء حساب",
-  "cli.error.nameRequired": "للحساب الجديد مرّر --name",
+  "cli.error.nameRequired": "ملف الحساب فارغ — زائر جديد. مرّر --name لإنشائه؛ بعد أول تسجيل دخول يُحفظ رمز الدخول وتعود عمليات التشغيل اللاحقة لتسجيل الدخول تلقائيًا",
   "cli.error.unknownCommand": "أمر غير معروف {command}؛ راجع المساعدة",
   "cli.error.unknownLanguage": "اللغة «{language}» غير مدعومة؛ المتاحة: {supported}",
   "cli.help.commands": "الأوامر: {commands}",

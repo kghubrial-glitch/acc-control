@@ -230,6 +230,35 @@ test('stop() оставляет финальный статус со всеми 
     clean(root);
   }
 });
+test('reconnect перелогинивает слот тем же аккаунтом (токен переиспользуется)', async () => {
+  const root = tempRoot();
+  writeAccount(root, 1, { name: 'Keeper' });
+  const fleet = new Fleet(root, { count: 1, first: 1 }, FakeClient);
+  const id = 'aaaabbbb-cccc-dddd-eeee-ffff00002222';
+  let closes = 0;
+  const live = new FakeClient({ index: 1, account: 'accounts/bot-1.json', root });
+  live.close = () => {
+    closes++;
+    live.state = 'stopped';
+  };
+  fleet.slots[0].status = 'online';
+  fleet.clients.set(1, live);
+  try {
+    Store.write(path.join(fleet.commandDir, `${id}.json`), { bot: 1, action: 'reconnect', args: {} });
+    await fleet.processCommands();
+    for (let i = 0; i < 10; i++) await flush();
+    assert.equal(closes, 1, 'старый клиент закрыт перед перелогином');
+    const result = Store.read(path.join(root, '.runtime', 'results', `${id}.json`));
+    assert.equal(result.ok, true);
+    assert.equal(result.result.reconnected, 1);
+    const relaunched = fleet.clients.get(1);
+    assert.equal(relaunched.options.account, 'accounts/bot-1.json', 'тот же файл аккаунта — не новый');
+    assert.equal(fleet.slots[0].status, 'online');
+  } finally {
+    fleet.stop();
+    clean(root);
+  }
+});
 class AccountClient extends FakeClient {
   async connect() {
     this.account = Store.read(path.join(this.options.root, this.options.account), {});

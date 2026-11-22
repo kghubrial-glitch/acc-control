@@ -9,7 +9,7 @@
   "cli.help.docs": "Tam örnekler: README.md, docs/COMMANDS.md, docs/VERIFICATION.md",
   "cli.help.lang": "Arayüz dili: --lang ru|en|tr|zh|ar; şu an — {language}",
   "cli.error.unknownCommand": "Bilinmeyen komut {command}; help yazın",
-  "cli.error.nameRequired": "Yeni hesap için --name belirtin",
+  "cli.error.nameRequired": "Hesap dosyası boş — yeni bir misafir. Oluşturmak için --name verin; ilk girişten sonra token kaydedilir ve sonraki çalıştırmalar otomatik giriş yapar",
   "cli.error.accountExists": "Hesap zaten var. Yeni bir --account yolu seçin; eskisi korunur",
   "cli.error.nameLocked": "Mevcut adı değiştirme kaldırıldı: --name yalnızca hesap oluştururken ad verir",
   "cli.error.unknownLanguage": "\"{language}\" dili desteklenmiyor; desteklenenler: {supported}",

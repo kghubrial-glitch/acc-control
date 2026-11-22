@@ -95,8 +95,17 @@ as an account game language (`ar-SA`) and as the interface language (`lang ar`).
 For many accounts at once use the **Fleet** pane: set first/count/name-prefix and a **club
 tag**, then Start — every bot is created and logged in, and each one joins that club
 (`node tools/fleet.js start --first 1 --count 20 --name-prefix Bot --club-tag #TAG`). The
-Bots table shows each account's name, tag, club and status. Tick **All bots** to send one
-command to every bot, e.g. `join-club --club-tag #TAG` or `leave-club`.
+Bots table shows each account's name, tag, club, status, whether it already has a saved token
+and its RTT. Tick **All bots** to send one command to every bot, e.g. `join-club --club-tag #TAG`
+or `leave-club`.
+
+**Stopping or pausing never destroys accounts.** Each bot writes its token to
+`accounts/bot-<index>.json` on first login; launching the fleet again logs those same bots back
+in — no new accounts are created. The pane shows this live: stat cards update automatically
+while the tab is open, and every row has its own **Relogin / Join / Leave / Chat / Info**
+buttons, so each bot can be driven individually from the browser
+(`node tools/fleet.js command --bot 1 --action reconnect` reconnects one bot with its stored
+token; `--all` does the whole fleet).
 
 The **Command a bot** panel now exposes the full command set (login, clubs, friends, lobby,
 matchmaking, spectate, Brawl TV, roster tools…); the line under the selector shows the

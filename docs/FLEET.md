@@ -223,6 +223,8 @@ CLI пишет `.runtime/commands/<uuid>.json` и ждёт `.runtime/results/<uu
 ```sh
 node tools/fleet.js command --bot 2 --action friends --timeout 20000
 node tools/fleet.js command --all --action chat --text 'привет'
+node tools/fleet.js command --bot 1 --action reconnect   # перелогин тем же токеном
+node tools/fleet.js command --all --action reconnect
 node tools/fleet.js pause
 node tools/fleet.js resume
 node tools/fleet.js retry
@@ -232,6 +234,10 @@ node tools/fleet.js retry
 - `--timeout` (мс, по умолчанию 60000) — ожидание результата; при `--all` умножается на
   `requested` из статуса.
 - `pause`/`resume`/`retry` и `retry-registration` — служебные команды без `--action`.
+- `--action reconnect` — служебное действие: закрывает клиент слота и запускает его снова.
+  Аккаунт берётся из `accounts/bot-<index>.json`, поэтому это <b>тот же</b> бот, а не новый;
+  ответ `{ reconnected: N }`. Используется кнопкой «Relogin» в веб-консоли и удобна после
+  Stop/Pause вместо повторного «создания» аккаунтов.
 
 Обработка очереди:
 

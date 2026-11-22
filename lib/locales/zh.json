@@ -9,7 +9,7 @@
   "cli.help.docs": "完整示例：README.md、docs/COMMANDS.md、docs/VERIFICATION.md",
   "cli.help.lang": "界面语言：--lang ru|en|tr|zh|ar；当前 — {language}",
   "cli.error.unknownCommand": "未知命令 {command}；请查看 help",
-  "cli.error.nameRequired": "新账号需要指定 --name",
+  "cli.error.nameRequired": "账号文件为空——新访客。请传 --name 创建；首次登录后令牌会被保存，之后的运行会自动重新登录",
   "cli.error.accountExists": "账号已存在。请选择新的 --account 路径，旧的已保留",
   "cli.error.nameLocked": "已移除改名功能：--name 仅在创建账号时设置名字",
   "cli.error.unknownLanguage": "不支持语言「{language}」；可用：{supported}",

@@ -9,7 +9,7 @@
   "cli.help.docs": "Полные примеры: README.md, docs/COMMANDS.md, docs/VERIFICATION.md",
   "cli.help.lang": "Язык интерфейса: --lang ru|en|tr|zh|ar; текущий — {language}",
   "cli.error.unknownCommand": "Неизвестная команда {command}; см. help",
-  "cli.error.nameRequired": "Для нового аккаунта укажите --name",
+  "cli.error.nameRequired": "Файл аккаунта пуст — новый гость. Передайте --name для создания; после первого входа токен сохранится, и последующие запуски войдут по нему автоматически",
   "cli.error.accountExists": "Аккаунт уже существует. Выберите новый путь --account, старый сохранён",
   "cli.error.nameLocked": "Смена уже заданного ника удалена: --name задаёт имя только при создании аккаунта",
   "cli.error.unknownLanguage": "Язык «{language}» не поддерживается; доступны: {supported}",
