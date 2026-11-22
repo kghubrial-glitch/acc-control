@@ -6,6 +6,7 @@ const { spawn } = require('node:child_process');
 const { parse } = require('../lib/Args');
 const Store = require('../lib/Store');
 const Accounts = require('../lib/Accounts');
+const Selection = require('../lib/Selection');
 const Platform = require('../utils/Platform');
 const ROOT = path.resolve(__dirname, '..'),
   PID = path.join(ROOT, 'fleet.pid'),
@@ -188,6 +189,49 @@ async function removeStaleFleetState(signal) {
   }
   return { pid, removed };
 }
+
+// Индексы существующих accounts/bot-N.json — естественный набор для выбора --bots.
+function accountIndexes() {
+  try {
+    return fs
+      .readdirSync(path.join(ROOT, 'accounts'))
+      .map((name) => /^bot-(\d+)\.json$/.exec(name))
+      .filter(Boolean)
+      .map((match) => Number(match[1]))
+      .sort((a, b) => a - b);
+  } catch {
+    return [];
+  }
+}
+
+// Разворачивает --bots/--select в явный список индексов для запуска флота.
+// Если файлов аккаунтов ещё нет, границы берём из самого выражения или --count.
+function resolveStartIndexes(options = {}) {
+  const spec = options.bots || options.select || options.indexes;
+  if (spec == null || spec === '') return null;
+  let available = accountIndexes();
+  if (!available.length) {
+    const numbers = String(spec).match(/\d+/g);
+    const max = numbers && numbers.length ? Math.max(...numbers.map(Number)) : Number(options.count) || 1;
+    available = Array.from({ length: Math.max(1, max) }, (_, n) => n + 1);
+  }
+  return Selection.parseSelection(String(spec), available);
+}
+
+// Сколько ботов затронет выбор — для оценки дедлайна ожидания результатов команды.
+function selectionSize(options = {}, status = {}) {
+  const spec = options.bots || options.select;
+  if (spec == null || spec === '') return options.all ? Number(status.requested) || 1 : 1;
+  const available = Array.isArray(status.bots) && status.bots.length
+    ? status.bots.map((bot) => Number(bot.index)).filter(Number.isInteger)
+    : accountIndexes();
+  try {
+    return Selection.parseSelection(String(spec), available).length || 1;
+  } catch {
+    return 1;
+  }
+}
+
 // Бесплатные прокси из публичных списков: один прогон proxy-watch (once) собирает и
 // проверяет пул working-proxies.json, через который флот получает ротацию IP.
 function buildFreeProxyPool() {
@@ -273,19 +317,38 @@ async function main() {
     console.log(`Запуск PID ${child.pid}. Проверка: node tools/fleet.js status`);
     return;
   }
-  if (['command', 'retry-registration', 'pause', 'resume', 'retry'].includes(command)) {
+  if (
+    ['command', 'retry-registration', 'pause', 'resume', 'retry', 'club-fill', 'club-cancel', 'club-queue'].includes(
+      command,
+    )
+  ) {
     if (!ownedPID()) throw new Error('Сначала запустите fleet');
-    const action = command === 'retry-registration' ? 'retry' : command === 'command' ? options.action : command;
+    const action =
+      command === 'retry-registration'
+        ? 'retry'
+        : command === 'command'
+          ? options.action
+          : command;
     if (!action) throw new Error('Нужен --action');
     const id = crypto.randomUUID();
     const file = path.join(ROOT, '.runtime', 'commands', `${id}.json`);
-    Store.write(file, { bot: options.bot, all: options.all, action, args: options });
+    const status = Store.read(path.join(ROOT, 'fleet-status.json'), {});
+    Store.write(file, {
+      bot: options.bot,
+      all: options.all,
+      select: options.bots || options.select || undefined,
+      action,
+      args: options,
+      queue: !!(options.queue || options.fill) || action === 'club-fill',
+    });
     const result = path.join(ROOT, '.runtime', 'results', `${id}.json`);
     // Действие ждёт «первого входа» ботов (login → потом действие), поэтому ориентир:
     // base timeout + волны логинов/действий. Одна волна ≈ 8 ботов командой параллельно.
-    const requested = options.all ? Store.read(path.join(ROOT, 'fleet-status.json'), {}).requested || 1 : 1;
+    // Очередь в клуб (club-fill/club-cancel/club-queue) отвечает сразу.
+    const queued = ['club-fill', 'club-cancel', 'club-queue'].includes(action);
+    const requested = queued ? 1 : selectionSize(options, status);
     const deadline =
-      Date.now() + Number(options.timeout || 60000) + (options.all ? Math.ceil(requested / 8) * 5000 : 0);
+      Date.now() + Number(options.timeout || 60000) + (requested > 1 ? Math.ceil(requested / 8) * 5000 : 0);
     while (!fs.existsSync(result)) {
       if (Date.now() > deadline || !ownedPID())
         throw new Error(`Результат ещё не получен. ID: ${id}; не повторяйте действие автоматически`);
@@ -297,11 +360,18 @@ async function main() {
       process.exitCode = 1;
     return;
   }
-  if (command !== 'run') throw new Error('fleet: start|run|status|stop|command|retry|pause|resume');
+  if (command !== 'run') throw new Error('fleet: start|run|status|stop|command|retry|pause|resume|club-fill|club-cancel|club-queue');
   if (ownedPID()) throw new Error('Процесс уже запущен');
   const log = new FleetLog(LOG, logOptions(options));
   log.rotateIfNeeded();
   installTee(log);
+  // --bots/--select разворачиваем в явный список индексов; --indexes может прийти строкой.
+  const startIndexes = resolveStartIndexes(options);
+  if (startIndexes && startIndexes.length) options.indexes = startIndexes;
+  else if (typeof options.indexes === 'string')
+    options.indexes = options.indexes.split(',').map(Number).filter(Number.isInteger);
+  if (options.nameRandom && typeof options.nameRandom === 'string')
+    options.nameRandom = !['false', '0', 'no'].includes(options.nameRandom);
   const Fleet = require('../lib/Fleet');
   const fleet = new Fleet(ROOT, options);
   fs.writeFileSync(PID, String(process.pid), { mode: 0o600 });

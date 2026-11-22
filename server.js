@@ -782,11 +782,20 @@ const PAGE = String.raw`<!DOCTYPE html>
             <div class="field"><label>From #</label><input id="fleet-first" value="1" style="width:64px"></div>
             <div class="field"><label>Bots</label><input id="fleet-count" value="3" style="width:64px"></div>
             <div class="field"><label>Parallel logins</label><input id="fleet-concurrency" value="6" style="width:64px"></div>
-            <div class="field" style="flex:1"><label>Name prefix (new bots only)</label><input id="fleet-prefix" placeholder="Bot"></div>
+            <div class="field"><label>Per-IP reuse</label><input id="fleet-reuse" value="5" style="width:52px"></div>
           </div>
           <div class="row">
-            <div class="field" style="flex:1"><label>Auto-join club tag after login (optional — one-click create + join)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
-            <div class="field"><label>Per-IP reuse</label><input id="fleet-reuse" value="5" style="width:52px"></div>
+            <div class="field" style="flex:1"><label>Bot selection (optional — overrides From/Bots): <code>1-50,75,90-</code> · <code>first:20</code> · <code>random:30</code> · <code>even</code></label><input id="fleet-select" placeholder="1-50,75,90-"></div>
+          </div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>Name template (new bots): <code>{index}</code> <code>{ordinal}</code> <code>{rand}</code> <code>{word}</code> <code>{pad3}</code></label><input id="fleet-name-template" placeholder="Bot{index}"></div>
+            <div class="field"><label>Name start</label><input id="fleet-name-start" style="width:70px" placeholder="index"></div>
+            <div class="field"><label>Zero-pad</label><input id="fleet-name-pad" style="width:56px" placeholder="0"></div>
+          </div>
+          <div class="row"><label class="check"><input type="checkbox" id="fleet-name-random"> Random names (word + number)</label></div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>Club tag (optional — one-click create + join)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
+            <label class="check" style="align-self:flex-end"><input type="checkbox" id="fleet-fill-start"> Capacity-aware club fill (queue bots that don’t fit, auto-rejoin if kicked)</label>
           </div>
           <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Launch fleet — log in / create</button></div>
           <p class="hint">Failed first logins retry fast with growing pauses. With a proxy pool, each proxy handles up to “Per-IP reuse” bots at once (3 proxies × reuse 5 = 15 parallel logins). Starting again with a higher count logs the same bots back in and adds new ones.</p>
@@ -797,10 +806,21 @@ const PAGE = String.raw`<!DOCTYPE html>
           <div class="row">
             <div class="field" style="flex:1"><label>Club tag</label><input id="fleet-qclub" placeholder="#TAG"></div>
           </div>
+          <p class="hint">Actions below target the <b>Bot selection</b> from step 1 (empty = all bots).</p>
+          <div class="row">
+            <div class="field"><label>Join concurrency</label><input id="fleet-join-concurrency" value="2" style="width:70px"></div>
+            <div class="field"><label>Retry (sec)</label><input id="fleet-join-retry" value="8" style="width:64px"></div>
+            <div class="field"><label>Max attempts (0=∞)</label><input id="fleet-join-attempts" value="0" style="width:76px"></div>
+          </div>
           <div class="row" style="margin-top:8px">
-            <button class="primary" id="fleet-join-all">Join club — all bots</button>
-            <button class="ghost" id="fleet-leave-all">Leave club — all bots</button>
-            <button class="ghost" id="fleet-reconnect-all">Re-login all (stored tokens)</button>
+            <button class="primary" id="fleet-fill" title="Queue the selection for the club; waits for free slots and re-joins kicked bots automatically">Fill club — queue (capacity-aware)</button>
+            <button class="ghost" id="fleet-join-all">Join club — now (one shot)</button>
+            <button class="ghost" id="fleet-fill-cancel">Cancel queue</button>
+            <button class="ghost" id="fleet-queue-status">Queue status</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button class="ghost" id="fleet-leave-all">Leave club</button>
+            <button class="ghost" id="fleet-reconnect-all">Re-login (stored tokens)</button>
           </div>
           <div class="row" style="margin-top:12px">
             <button id="fleet-retry">Retry failed</button>
@@ -814,9 +834,12 @@ const PAGE = String.raw`<!DOCTYPE html>
         </div>
       </div>
       <div class="panel">
-        <h3>Command a bot</h3>
+        <h3>Command bots</h3>
         <div class="row">
-          <div class="field"><label>Bot (ignored when All)</label><input id="fleet-bot" value="1" style="width:60px"></div>
+          <div class="field" style="flex:1"><label>Bot selection (optional — overrides Bot/All): <code>1,3,5-10</code> · <code>first:10</code> · <code>last:5</code> · <code>random:20</code></label><input id="fleet-cmd-select" placeholder="1,3,5-10"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Bot (ignored when All/selection)</label><input id="fleet-bot" value="1" style="width:60px"></div>
           <div class="field" style="flex:1"><label>Action</label><select id="fleet-action"></select></div>
           <div class="field" style="flex:1"><label>Extra args</label><input id="fleet-extra" placeholder="e.g. --club-tag #TAG --text Hello"></div>
           <button class="primary" id="fleet-cmd">Send</button>
@@ -1277,7 +1300,10 @@ const PAGE = String.raw`<!DOCTYPE html>
     'team-bot': '--slot 0-9 --disabled true|false',
     'practice': '--experimental',
     'player-status': '--tag #PLAYER_TAG --experimental',
-    top: '--type 0|1'
+    top: '--type 0|1',
+    'club-fill': '--club-tag #TAG [--bots ...] [--join-concurrency N --join-retry-ms Ms --join-max-attempts N] (queue, capacity-aware)',
+    'club-cancel': '[--bots ...] (remove from queue; empty = all)',
+    'club-queue': 'no args (show queue status)'
   };
   var fleetActionSel = $('fleet-action');
   FLEET_ACTIONS.forEach(function (a) {
@@ -1317,16 +1343,49 @@ const PAGE = String.raw`<!DOCTYPE html>
   syncClub('fleet-clubtag', 'fleet-qclub');
   syncClub('fleet-qclub', 'fleet-clubtag');
 
+  // Выбор ботов из поля "Bot selection" (пусто = From/Bots/All).
+  function selectionSpec() {
+    return ($('fleet-select').value || '').trim();
+  }
+  function selectionArgs() {
+    var spec = selectionSpec();
+    return spec ? ['--bots', spec] : [];
+  }
+  function joinConfigArgs(prefix) {
+    var out = [];
+    var jc = parseInt($('fleet-join-concurrency').value, 10);
+    if (jc >= 1) out.push(prefix + 'concurrency', String(jc));
+    var jr = parseFloat($('fleet-join-retry').value);
+    if (jr > 0) out.push(prefix + 'retry-ms', String(Math.round(jr * 1000)));
+    var ja = parseInt($('fleet-join-attempts').value, 10);
+    if (ja >= 0) out.push(prefix + 'max-attempts', String(ja));
+    return out;
+  }
   function fleetStartArgs(overrides) {
     var o = overrides || {};
-    var args = ['start', '--first', String(o.first !== undefined ? o.first : ($('fleet-first').value || '1'))];
-    var count = o.count !== undefined ? o.count : ($('fleet-count').value || '3');
-    args.push('--count', String(count));
+    var explicit = o.first !== undefined || o.count !== undefined;
+    var args = ['start'];
+    var spec = explicit ? '' : selectionSpec();
+    if (spec) {
+      args.push('--bots', spec);
+    } else {
+      args.push('--first', String(o.first !== undefined ? o.first : ($('fleet-first').value || '1')));
+      args.push('--count', String(o.count !== undefined ? o.count : ($('fleet-count').value || '3')));
+    }
     var par = parseInt($('fleet-concurrency').value, 10);
     if (par >= 1 && par <= 200) args.push('--concurrency', String(par));
-    if ($('fleet-prefix').value.trim()) args.push('--name-prefix', $('fleet-prefix').value.trim());
+    if ($('fleet-name-template').value.trim()) args.push('--name-template', $('fleet-name-template').value.trim());
+    if ($('fleet-name-start').value.trim()) args.push('--name-start', $('fleet-name-start').value.trim());
+    if ($('fleet-name-pad').value.trim()) args.push('--name-pad', $('fleet-name-pad').value.trim());
+    if ($('fleet-name-random').checked) args.push('--name-random');
     var club = $('fleet-clubtag').value.trim() || $('fleet-qclub').value.trim();
-    if (club) args.push('--club-tag', club);
+    if (club) {
+      args.push('--club-tag', club);
+      if ($('fleet-fill-start').checked) {
+        args.push('--club-fill');
+        args = args.concat(joinConfigArgs('--club-fill-'));
+      }
+    }
     if ($('px-use') && $('px-use').checked)
       args.push('--proxy-pool-file', $('px-file').value.trim() || 'working-proxies.json');
     var reuse = parseInt($('fleet-reuse').value, 10);
@@ -1370,16 +1429,39 @@ const PAGE = String.raw`<!DOCTYPE html>
       });
     });
   });
-  $('fleet-join-all').addEventListener('click', function () {
+  function needTag() {
     var tag = $('fleet-qclub').value.trim();
-    if (!tag) { $('fleet-status').textContent = 'Enter a club tag first (e.g. #ABC …).'; $('fleet-status').className = 'outbox err'; return; }
-    fleetRun(['command', '--all', '--action', 'join-club', '--club-tag', tag], 'join-club → all bots (waits for login, then joins)');
+    if (!tag) { $('fleet-status').textContent = 'Enter a club tag first (e.g. #2Y0L8Q…).'; $('fleet-status').className = 'outbox err'; return null; }
+    return tag;
+  }
+  function targetArgs() {
+    var args = selectionArgs();
+    if (!args.length) args = ['--all'];
+    return args;
+  }
+  $('fleet-fill').addEventListener('click', function () {
+    var tag = needTag();
+    if (!tag) return;
+    var args = ['club-fill', '--club-tag', tag].concat(selectionArgs()).concat(joinConfigArgs('--join-'));
+    fleetRun(args, 'fill club → queue selected bots (capacity-aware)');
+  });
+  $('fleet-join-all').addEventListener('click', function () {
+    var tag = needTag();
+    if (!tag) return;
+    fleetRun(['command', '--action', 'join-club', '--club-tag', tag].concat(targetArgs()), 'join-club → selected bots (waits for login, then joins)');
+  });
+  $('fleet-fill-cancel').addEventListener('click', function () {
+    var args = ['club-cancel'].concat(selectionArgs());
+    fleetRun(args, 'cancel club queue' + (selectionSpec() ? ' (selection)' : ' (all)'));
+  });
+  $('fleet-queue-status').addEventListener('click', function () {
+    fleetRun(['club-queue'], 'club queue status');
   });
   $('fleet-leave-all').addEventListener('click', function () {
-    fleetRun(['command', '--all', '--action', 'leave-club'], 'leave-club → all bots (waits for login)');
+    fleetRun(['command', '--action', 'leave-club'].concat(targetArgs()), 'leave-club → selected bots (waits for login)');
   });
   $('fleet-reconnect-all').addEventListener('click', function () {
-    fleetRun(['command', '--all', '--action', 'reconnect'], 're-login → all bots with stored tokens');
+    fleetRun(['command', '--action', 'reconnect'].concat(targetArgs()), 're-login → selected bots with stored tokens');
   });
 
   // ------------------------- proxies (free IP rotation) -------------------------
@@ -1450,10 +1532,12 @@ const PAGE = String.raw`<!DOCTYPE html>
     var action = $('fleet-action').value;
     var extra = tokenizeLine($('fleet-extra').value);
     var args = ['command'];
-    if ($('fleet-all').checked) args.push('--all');
+    var spec = ($('fleet-cmd-select').value || '').trim();
+    if (spec) args.push('--bots', spec);
+    else if ($('fleet-all').checked) args.push('--all');
     else args.push('--bot', $('fleet-bot').value || '1');
     args.push('--action', action);
-    fleetRun(args.concat(extra), 'command ' + action + ($('fleet-all').checked ? ' (all bots)' : ''));
+    fleetRun(args.concat(extra), 'command ' + action + (spec ? ' (selection)' : $('fleet-all').checked ? ' (all bots)' : ''));
   });
 
   // splits a command line into tokens, honouring single/double quotes
@@ -1507,7 +1591,13 @@ const PAGE = String.raw`<!DOCTYPE html>
     cards += card('Pending', String(pending), smallOn(online));
     cards += card('Failed', String(failed), failed ? 'small off' : 'small');
     cards += card('Registered', String(m.registered || 0), 'small');
-    cards += card('Club', String(states['joining-club'] || 0) + ' on', 'small');
+    var club = m.club || {};
+    var clubTxt = club.enabled
+      ? (((club.want || 0) + (club.joining || 0) + ' queued') +
+      (club.full ? ' · full' : (club.memberCount != null ? ' · ' + club.memberCount + ' in' : '')) +
+      (club.failed ? ' · ' + club.failed + ' err' : ''))
+      : String(states['joining-club'] || 0) + ' joining';
+    cards += card('Club', clubTxt, 'small');
     cards += card('RTT', rtt, 'small');
     cards += card('Avg login', login, 'small');
     el.innerHTML = cards;
@@ -1538,6 +1628,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       var club = (b.club && b.club.tag) ? b.club.tag : (b.joined ? 'joined' : '-');
       var err = b.clubError ? ' (club: ' + b.clubError + ')' : '';
       var info = esc(err || b.error || '');
+      if (b.clubState && b.clubState !== 'joined') info += (info ? ' · ' : '') + 'club:' + b.clubState + (b.clubAttempts > 1 ? '(' + b.clubAttempts + ')' : '');
       if (b.attempts > 1) info += (info ? ' · ' : '') + b.attempts + ' tries';
       if (Number.isFinite(b.rttMs)) info += (info ? ' · ' : '') + Math.round(b.rttMs) + 'ms';
       var reg = b.registered ? '<span class="reg-yes" title="has a saved token">✓ token</span>' : '<span class="reg-no" title="empty file — will be created">no token</span>';
