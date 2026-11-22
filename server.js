@@ -1211,8 +1211,22 @@ const PAGE = String.raw`<!DOCTYPE html>
     return a;
   }
 
+  // Следующий свободный индекс бота для нового аккаунта: создаём bot-N.json с
+  // нормальным числовым именем, чтобы аккаунт управлялся флотом по индексу.
+  function nextBotFile() {
+    var files = (STATE.state && STATE.state.accountFiles) || [];
+    var used = new Set();
+    for (var i = 0; i < files.length; i++) {
+      var m = /^bot-(\d+)\.json$/.exec(files[i] || '');
+      if (m) used.add(Number(m[1]));
+    }
+    var n = 1;
+    while (used.has(n)) n++;
+    return 'bot-' + n + '.json';
+  }
+
   $('acc-create').addEventListener('click', function () {
-    var file = normalizeAccountKey($('acc-file').value.trim() || ('bot-' + Date.now() + '.json'));
+    var file = normalizeAccountKey($('acc-file').value.trim() || nextBotFile());
     var name = $('acc-name').value.trim();
     if (!name) { statusEl($('acc-list'), 'name is required', 'bad'); return; }
     var sel = $('acc-locale');
@@ -1305,6 +1319,7 @@ const PAGE = String.raw`<!DOCTYPE html>
 
   function refreshRegistry() {
     $('acc-list').textContent = 'loading…';
+    if ($('acc-file') && !$('acc-file').value) $('acc-file').placeholder = nextBotFile();
     api('POST', '/api/accounts', { args: ['list', '--json'] }).then(function (j) {
       var text = j.result ? pretty(j.result) : pretty(j);
       $('acc-list').textContent = text;
