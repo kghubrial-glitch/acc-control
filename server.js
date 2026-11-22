@@ -67,6 +67,31 @@ function writeJSON(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
 }
 
+// Пишет locale/preferredLanguage во все файлы аккаунтов (кроме индекса).
+// Возвращает список изменённых файлов, чтобы UI мог показать результат.
+function applyLanguageToAccounts(locale, preferredLanguage) {
+  let files = [];
+  try {
+    files = fs
+      .readdirSync(ACCOUNTS_DIR)
+      .filter((name) => name.endsWith('.json') && name !== 'index.json' && !name.startsWith('.'));
+  } catch {
+    return { total: 0, changed: [] };
+  }
+  const changed = [];
+  for (const name of files) {
+    const full = path.join(ACCOUNTS_DIR, name);
+    const account = readJSON(full, null);
+    if (!account || typeof account !== 'object' || Array.isArray(account)) continue;
+    if (account.locale === locale && account.preferredLanguage === preferredLanguage) continue;
+    account.locale = locale;
+    account.preferredLanguage = preferredLanguage;
+    writeJSON(full, account);
+    changed.push(name);
+  }
+  return { total: files.length, changed };
+}
+
 function sendJSON(res, status, body) {
   const text = JSON.stringify(body, null, 2);
   res.writeHead(status, {
@@ -421,6 +446,13 @@ function router(req, res) {
           writeJSON(CONFIG_PATH, merged);
           return sendJSON(res, 200, { ok: true, config: merged, languages: GAME_LOCALES });
         }
+        if (p === '/api/accounts-language') {
+          // Проставляем язык во все файлы accounts/*.json (кроме index.json), чтобы
+          // существующие аккаунты сразу стали арабскими, а не только новые.
+          const locale = String(body.locale || 'ar-SA');
+          const preferredLanguage = String(body.preferredLanguage || 'ar');
+          return sendJSON(res, 200, { ok: true, ...applyLanguageToAccounts(locale, preferredLanguage) });
+        }
         return sendJSON(res, 404, { ok: false, error: 'Not found', path: p });
       } catch (err) {
         return sendJSON(res, 500, { ok: false, error: err.message });
@@ -682,6 +714,9 @@ const PAGE = String.raw`<!DOCTYPE html>
             <button id="acc-stats">Stats</button>
             <button id="acc-prune">Prune (dry-run)</button>
             <button id="acc-cleanup">Cleanup .runtime</button>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button class="primary" id="acc-arabic">Set all accounts to Arabic (العربية · ar-SA)</button>
           </div>
         </div>
       </div>
@@ -1106,7 +1141,18 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('acc-stats').addEventListener('click', function () { accRunSimple('stats', ['stats']); });
   $('acc-prune').addEventListener('click', function () { accRunSimple('prune (dry-run)', ['prune', '--dry-run']); });
   $('acc-cleanup').addEventListener('click', function () { accRunSimple('cleanup', ['cleanup']); });
-  $('acc-list-again').addEventListener('click', function () { refreshRegistry(); });
+  $('acc-arabic').addEventListener('click', function () {
+    statusEl($('acc-list'), 'setting Arabic on all accounts …', 'warn');
+    api('POST', '/api/accounts-language', { locale: 'ar-SA', preferredLanguage: 'ar' }).then(function (j) {
+      $('acc-list').textContent = j.ok
+        ? 'Arabic (ar-SA / ar) set on ' + j.changed.length + ' of ' + j.total + ' account file(s).' +
+          (j.changed.length ? '\n' + j.changed.join(', ') : '\nAll accounts were already Arabic.')
+        : pretty(j);
+      $('acc-list').className = 'outbox' + (j.ok ? '' : ' err');
+      refreshRegistry();
+    });
+  });
+  $('acc-list-again').addEventListener('click', () => refreshRegistry());
 
   $('reg-save').addEventListener('click', function () {
     var acc = $('reg-account').value.trim();
@@ -1643,8 +1689,12 @@ const PAGE = String.raw`<!DOCTYPE html>
       cfg.preferredLanguage = 'ar';
       $('cfg-json').value = pretty(cfg);
       api('POST', '/api/config', { config: { locale: 'ar-SA', preferredLanguage: 'ar' } }).then(function (j) {
-        $('cfg-status').textContent = j.ok ? 'game language set to Arabic; saved to config.json' : (j.error || 'error');
-        $('cfg-status').className = 'status ' + (j.ok ? 'ok' : 'bad');
+        if (!j.ok) { $('cfg-status').textContent = j.error || 'error'; $('cfg-status').className = 'status bad'; return; }
+        api('POST', '/api/accounts-language', { locale: 'ar-SA', preferredLanguage: 'ar' }).then(function (k) {
+          $('cfg-status').textContent = 'game language set to Arabic (config.json + ' +
+            (k.ok ? k.changed.length + ' account file(s)' : 'accounts skipped') + ')';
+          $('cfg-status').className = 'status ok';
+        });
       });
     } catch (e) { $('cfg-status').textContent = 'invalid JSON: ' + e.message; $('cfg-status').className = 'status bad'; }
   });

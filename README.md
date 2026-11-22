@@ -89,8 +89,14 @@ WEB_TOKEN=secret node server.js  # optional: require a token for the web UI
 The page provides a dashboard, a terminal (any `node Program.js …` command), and panes for
 accounts, bot fleet, clubs/friends, lobby and config. Every button runs the same CLI command
 on the server with `--json`, so the behaviour matches the terminal. On hosting panels the
-allocated port is usually passed in `PORT` or `SERVER_PORT` automatically. Arabic is available
-as an account game language (`ar-SA`) and as the interface language (`lang ar`).
+allocated port is usually passed in `PORT` or `SERVER_PORT` automatically.
+
+**Arabic is the default account language.** `config.json` ships with
+`"locale": "ar-SA"` / `"preferredLanguage": "ar"`, and every login sends those values, so new and
+existing accounts appear in Arabic in-game. A per-run `--locale`/`--preferred-language` still wins.
+The **Accounts** pane has a *Set all accounts to Arabic* button (and the Config pane's Arabic
+button does the same) which rewrites `locale`/`preferredLanguage` in every `accounts/*.json`. The
+web interface itself can be switched to Arabic too (`lang ar`, or Config → interface language).
 
 For many accounts at once use the **Fleet** pane: set first/count/name-prefix and a **club
 tag**, then Start — every bot is created and logged in, and each one joins that club
