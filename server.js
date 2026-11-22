@@ -404,7 +404,11 @@ const PAGE = String.raw`<!DOCTYPE html>
   html, body { margin: 0; height: 100%; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg); color: var(--text); font-size: 14px;
+    background:
+      radial-gradient(1200px 500px at 85% -10%, rgba(34, 211, 238, 0.08), transparent 60%),
+      radial-gradient(900px 500px at -10% 0%, rgba(74, 222, 128, 0.07), transparent 55%),
+      var(--bg);
+    color: var(--text); font-size: 14px;
   }
   .app { display: flex; min-height: 100vh; }
   .sidebar {
@@ -448,9 +452,17 @@ const PAGE = String.raw`<!DOCTYPE html>
     background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 8px;
     padding: 8px 14px; font-size: 14px; cursor: pointer;
   }
+  button { transition: border-color 0.15s, box-shadow 0.15s, filter 0.15s, transform 0.05s; }
   button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); color: #052e16; border-color: var(--accent); font-weight: 700; }
-  button.primary:hover { filter: brightness(1.05); }
+  button:active { transform: translateY(1px); }
+  button.primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #34d399 100%);
+    color: #052e16; border-color: transparent; font-weight: 700;
+    box-shadow: 0 2px 14px rgba(74, 222, 128, 0.25);
+  }
+  button.primary:hover { filter: brightness(1.08); box-shadow: 0 4px 18px rgba(74, 222, 128, 0.35); }
+  button.ghost { background: transparent; color: var(--accent2); border-color: rgba(34, 211, 238, 0.4); }
+  button.ghost:hover { border-color: var(--accent2); box-shadow: 0 2px 12px rgba(34, 211, 238, 0.2); }
   button.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
   button.small { padding: 5px 9px; font-size: 12px; }
   .outbox {
@@ -475,6 +487,12 @@ const PAGE = String.raw`<!DOCTYPE html>
   .link { color: var(--accent2); text-decoration: none; cursor: pointer; }
   .muted { color: var(--muted); }
   .badge { display: inline-block; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; font-size: 12px; color: var(--muted); }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.55; margin: 9px 0 0; }
+  .panel h3 { display: flex; align-items: center; gap: 8px; }
+  .panel h3::before {
+    content: ''; width: 8px; height: 14px; border-radius: 3px; flex: 0 0 auto;
+    background: linear-gradient(180deg, var(--accent), var(--accent2));
+  }
   table.bots { width: 100%; border-collapse: collapse; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
   table.bots th, table.bots td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
   table.bots th { color: var(--muted); font-weight: 600; }
@@ -606,24 +624,34 @@ const PAGE = String.raw`<!DOCTYPE html>
         <div class="panel">
           <h3>Start fleet</h3>
           <div class="row">
-            <div class="field"><label>First</label><input id="fleet-first" value="1" style="width:70px"></div>
-            <div class="field"><label>Count</label><input id="fleet-count" value="3" style="width:70px"></div>
+            <div class="field"><label>From #</label><input id="fleet-first" value="1" style="width:64px"></div>
+            <div class="field"><label>Bots</label><input id="fleet-count" value="3" style="width:64px"></div>
+            <div class="field"><label>Parallel</label><input id="fleet-concurrency" value="5" style="width:64px"></div>
             <div class="field" style="flex:1"><label>Name prefix</label><input id="fleet-prefix" placeholder="Bot"></div>
           </div>
           <div class="row">
-            <div class="field" style="flex:1"><label>Club tag (auto-join after login)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
+            <div class="field" style="flex:1"><label>Club tag to auto-join after login</label><input id="fleet-clubtag" placeholder="#TAG"></div>
           </div>
-          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Start</button></div>
+          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Launch bots</button></div>
+          <p class="hint">Each bot logs in (and joins the club) in background. Failed first logins are retried automatically. Start again with a higher count to add more bots.</p>
         </div>
         <div class="panel">
-          <h3>Control</h3>
+          <h3>Quick actions</h3>
           <div class="row">
-            <button id="fleet-stop">Stop</button>
+            <div class="field" style="flex:1"><label>Club tag</label><input id="fleet-qclub" placeholder="#TAG"></div>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button class="ghost" id="fleet-join-all">Join club → all bots</button>
+            <button class="ghost" id="fleet-leave-all">Leave club → all bots</button>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="fleet-retry">Retry</button>
             <button id="fleet-pause">Pause</button>
             <button id="fleet-resume">Resume</button>
-            <button id="fleet-retry">Retry</button>
+            <button id="fleet-stop">Stop</button>
             <button id="fleet-status-btn">Status</button>
           </div>
+          <p class="hint">Retry replays all failed/blocked bots. The club field also pre-fills “Start fleet”.</p>
         </div>
       </div>
       <div class="panel">
@@ -995,12 +1023,30 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('fleet-pause').addEventListener('click', function () { fleetRun(['pause'], 'pause'); });
   $('fleet-resume').addEventListener('click', function () { fleetRun(['resume'], 'resume'); });
   $('fleet-retry').addEventListener('click', function () { fleetRun(['retry'], 'retry'); });
+  // Two club-tag fields (start + quick actions) stay in sync.
+  function syncClub(fromId, toId) {
+    var el = $(fromId), other = $(toId);
+    el.addEventListener('input', function () { other.value = el.value; });
+  }
+  syncClub('fleet-clubtag', 'fleet-qclub');
+  syncClub('fleet-qclub', 'fleet-clubtag');
+
   $('fleet-start').addEventListener('click', function () {
     var args = ['start', '--first', $('fleet-first').value || '1', '--count', $('fleet-count').value || '3'];
+    var par = parseInt($('fleet-concurrency').value, 10);
+    if (par >= 1 && par <= 20) args.push('--concurrency', String(par));
     if ($('fleet-prefix').value.trim()) args.push('--name-prefix', $('fleet-prefix').value.trim());
     var club = $('fleet-clubtag').value.trim();
     if (club) args.push('--club-tag', club);
     fleetRun(args, 'start');
+  });
+  $('fleet-join-all').addEventListener('click', function () {
+    var tag = $('fleet-qclub').value.trim();
+    if (!tag) { $('fleet-status').textContent = 'Enter a club tag first (e.g. #ABC …).'; $('fleet-status').className = 'outbox err'; return; }
+    fleetRun(['command', '--all', '--action', 'join-club', '--club-tag', tag], 'join-club (all bots)');
+  });
+  $('fleet-leave-all').addEventListener('click', function () {
+    fleetRun(['command', '--all', '--action', 'leave-club'], 'leave-club (all bots)');
   });
   $('fleet-cmd').addEventListener('click', function () {
     var action = $('fleet-action').value;
@@ -1046,22 +1092,38 @@ const PAGE = String.raw`<!DOCTYPE html>
       box.textContent = status && status.bots && !status.bots.length ? 'no bots in fleet yet' : 'no fleet status yet — start a fleet first';
       return;
     }
+    var counts = { online: 0, ok: 0, failed: 0, queued: 0 };
+    status.bots.forEach(function (b) {
+      if (['online', 'battle', 'in-battle', 'spectating'].includes(b.status)) counts.online++;
+      if (b.status === 'failed' || b.status === 'blocked') counts.failed++;
+      if (b.status === 'queued' || b.status === 'connecting' || b.status === 'joining-club') counts.queued++;
+    });
+    var summary =
+      '<div class="row" style="margin-bottom:8px;gap:6px">' +
+      '<span class="badge">total ' + status.bots.length + '</span>' +
+      '<span class="pill on">online ' + counts.online + '</span>' +
+      '<span class="pill">pending ' + counts.queued + '</span>' +
+      '<span class="pill off">failed ' + counts.failed + '</span>' +
+      '</div>';
     var rows = status.bots.map(function (b) {
       var ind = b.index;
       var name = b.name || '-';
       var tag = b.tag || '-';
       var club = (b.club && b.club.tag) ? b.club.tag : (b.joined ? 'joined' : '-');
-      var err = b.clubError ? ' (' + b.clubError + ')' : '';
+      var err = b.clubError ? ' (club: ' + b.clubError + ')' : '';
+      var info = esc(err || b.error || '') + (b.attempts > 1 ? ' · ' + b.attempts + ' tries' : '');
       return '<tr>' +
         '<td>#' + ind + '</td>' +
         '<td class="st ' + b.status + '">' + b.status + '</td>' +
         '<td>' + esc(name) + '</td>' +
         '<td>' + esc(tag) + '</td>' +
-        '<td>' + esc(club) + err + '</td>' +
+        '<td>' + esc(club) + '</td>' +
+        '<td class="muted">' + esc(info) + '</td>' +
         '</tr>';
     }).join('');
     box.className = 'outbox bots';
-    box.innerHTML = '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    box.innerHTML = summary +
+      '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>info</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   function esc(v) {

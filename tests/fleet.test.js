@@ -345,8 +345,39 @@ test('один сбой бота считается в failedTotal ровно о
   try {
     fleet.start();
     for (let i = 0; i < 10; i++) await flush();
-    assert.equal(fleet.slots[0].status, 'failed');
     assert.equal(fleet.metrics.failedTotal, 1, 'один инцидент — один переход в failed');
+    // транзиентный сбой не хоронит слота: он возвращается в очередь на авто-ретрай
+    assert.equal(fleet.slots[0].status, 'queued');
+    assert.equal(fleet.slots[0].launchRetries, 1);
+    assert.ok(fleet.slots[0].retryAt > Date.now());
+  } finally {
+    fleet.stop();
+    clean(root);
+  }
+});
+
+test('авто-ретрай прекращается после maxSlotRetries неудач подряд', async () => {
+  const root = tempRoot();
+  writeAccount(root, 1);
+  let attempts = 0;
+  class AlwaysFailingClient extends FakeClient {
+    async connect() {
+      attempts++;
+      this.emit('state', { state: 'failed', error: 'сервер недоступен' });
+      throw new Error('сервер недоступен');
+    }
+  }
+  const fleet = new Fleet(root, { count: 1, maxSlotRetries: 2, slotRetryBackoffMs: 5 }, AlwaysFailingClient);
+  try {
+    fleet.start();
+    // Даём микротаскам и таймерам авто-ретраев (5 + 10 мс) дойти до конца.
+    for (let i = 0; i < 10; i++) {
+      await sleep(20);
+      await flush();
+    }
+    assert.equal(fleet.slots[0].status, 'failed', 'после исчерпания авто-ретраев слот остаётся failed');
+    assert.equal(fleet.slots[0].launchRetries, 3, 'исходный запуск + 2 авто-ретрая');
+    assert.equal(fleet.metrics.failedTotal, 3);
   } finally {
     fleet.stop();
     clean(root);

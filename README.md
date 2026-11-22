@@ -139,6 +139,13 @@ node tools/fleet.js stop
 new accounts. A single bot's error does not freeze the queue: the refusal is visible in
 `clubError`, and an already-logged-in bot stays online. There are `retry`, `pause`, `resume`.
 
+The first login of a brand-new bot (registration + nickname + re-login) is given up to
+`--slot-connect-timeout` (default 180 s, was 90 s). A bot that fails for a transient reason
+(timeout, dropped connection) is **re-queued automatically** — up to `--max-slot-retries`
+(default 8) retries with a growing pause (`--slot-retry-backoff-ms`, default 15 s), so a busy
+server no longer leaves most of a big fleet stuck in `failed`. Persistent refusals
+(e.g. `blocked`) are not retried automatically; `retry` replays those manually.
+
 The background process writes `fleet.log` and `fleet-status.json`, reconnects after a drop and
 asks for a Termux wake-lock (no-op on Windows/Linux/macOS). Android may still kill Termux — for
 24/7 operation you need a server, not a phone. The process existing does not mean all bots are
