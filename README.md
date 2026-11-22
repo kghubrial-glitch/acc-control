@@ -92,11 +92,15 @@ on the server with `--json`, so the behaviour matches the terminal. On hosting p
 allocated port is usually passed in `PORT` or `SERVER_PORT` automatically.
 
 **Arabic is the default account language.** `config.json` ships with
-`"locale": "ar-SA"` / `"preferredLanguage": "ar"`, and every login sends those values, so new and
-existing accounts appear in Arabic in-game. A per-run `--locale`/`--preferred-language` still wins.
+`"locale": "ar-SA"` / `"preferredLanguage": "ar"` / `"localeIndex": 2`, and the login handshake
+sends the game language as a LOCALE data reference (`class 1`, index from the game's
+`csv_logic/locales.csv`: 0=EN, 2=AR, 17=RU, 18=TR), which is what actually places the account
+into the matching in-game community. Because of that, new **and existing** accounts appear in
+Arabic. A per-run `--locale` / `--preferred-language` / `--locale-index` still wins.
 The **Accounts** pane has a *Set all accounts to Arabic* button (and the Config pane's Arabic
-button does the same) which rewrites `locale`/`preferredLanguage` in every `accounts/*.json`. The
-web interface itself can be switched to Arabic too (`lang ar`, or Config → interface language).
+button does the same) which rewrites `locale` / `preferredLanguage` / `localeIndex` in every
+`accounts/*.json` so already-created accounts move to the Arabic community on their next login.
+The web interface itself can be switched to Arabic too (`lang ar`, or Config → interface language).
 
 For many accounts at once use the **Fleet** pane: set first/count/name-prefix and a **club
 tag**, then Start — every bot is created and logged in, and each one joins that club

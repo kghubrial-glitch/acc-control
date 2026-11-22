@@ -40,15 +40,18 @@ const FLEET_STATUS = path.join(ROOT, 'fleet-status.json');
 const FLEET_PID = path.join(ROOT, 'fleet.pid');
 const FLEET_LOG = path.join(ROOT, 'fleet.log');
 const ACCOUNTS_DIR = path.join(ROOT, 'accounts');
+const { resolveLocaleIndex } = require('./lib/Locales');
 
 // Game locales (account language in the game) offered by the console.
-// `ar` (Arabic) was added as an extra language on top of the originals.
+// `index` is the LOCALE DataReference (class 1) sent by the login handshake —
+// it is what puts the account into the matching in-game community (0=EN, 2=AR,
+// 17=RU, 18=TR). `ar` (Arabic) was added as an extra language on top of the originals.
 const GAME_LOCALES = [
-  { label: 'العربية (Arabic)', locale: 'ar-SA', preferredLanguage: 'ar' },
-  { label: 'English', locale: 'en-US', preferredLanguage: 'en' },
-  { label: 'Русский', locale: 'ru-RU', preferredLanguage: 'ru' },
-  { label: 'Türkçe', locale: 'tr-TR', preferredLanguage: 'tr' },
-  { label: '中文', locale: 'zh-CN', preferredLanguage: 'zh' },
+  { label: 'العربية (Arabic)', locale: 'ar-SA', preferredLanguage: 'ar', index: 2 },
+  { label: 'English', locale: 'en-US', preferredLanguage: 'en', index: 0 },
+  { label: 'Русский', locale: 'ru-RU', preferredLanguage: 'ru', index: 17 },
+  { label: 'Türkçe', locale: 'tr-TR', preferredLanguage: 'tr', index: 18 },
+  { label: '中文', locale: 'zh-CN', preferredLanguage: 'zh', index: 1 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -67,9 +70,10 @@ function writeJSON(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
 }
 
-// Пишет locale/preferredLanguage во все файлы аккаунтов (кроме индекса).
-// Возвращает список изменённых файлов, чтобы UI мог показать результат.
-function applyLanguageToAccounts(locale, preferredLanguage) {
+// Пишет locale/preferredLanguage/localeIndex во все файлы аккаунтов (кроме index.json).
+// localeIndex — это индекс LOCALE DataReference (class 1) в логине; он и определяет
+// игровое сообщество аккаунта. Возвращает список изменённых файлов.
+function applyLanguageToAccounts(locale, preferredLanguage, localeIndex) {
   let files = [];
   try {
     files = fs
@@ -78,18 +82,21 @@ function applyLanguageToAccounts(locale, preferredLanguage) {
   } catch {
     return { total: 0, changed: [] };
   }
+  const index =
+    Number.isInteger(localeIndex) ? localeIndex : resolveLocaleIndex(locale, resolveLocaleIndex(preferredLanguage, 0));
   const changed = [];
   for (const name of files) {
     const full = path.join(ACCOUNTS_DIR, name);
     const account = readJSON(full, null);
     if (!account || typeof account !== 'object' || Array.isArray(account)) continue;
-    if (account.locale === locale && account.preferredLanguage === preferredLanguage) continue;
+    if (account.locale === locale && account.preferredLanguage === preferredLanguage && account.localeIndex === index) continue;
     account.locale = locale;
     account.preferredLanguage = preferredLanguage;
+    account.localeIndex = index;
     writeJSON(full, account);
     changed.push(name);
   }
-  return { total: files.length, changed };
+  return { total: files.length, changed, locale, preferredLanguage, localeIndex: index };
 }
 
 function sendJSON(res, status, body) {
@@ -451,7 +458,8 @@ function router(req, res) {
           // существующие аккаунты сразу стали арабскими, а не только новые.
           const locale = String(body.locale || 'ar-SA');
           const preferredLanguage = String(body.preferredLanguage || 'ar');
-          return sendJSON(res, 200, { ok: true, ...applyLanguageToAccounts(locale, preferredLanguage) });
+          const localeIndex = body.localeIndex === undefined ? undefined : Number(body.localeIndex);
+          return sendJSON(res, 200, { ok: true, ...applyLanguageToAccounts(locale, preferredLanguage, localeIndex) });
         }
         return sendJSON(res, 404, { ok: false, error: 'Not found', path: p });
       } catch (err) {
@@ -1061,7 +1069,10 @@ const PAGE = String.raw`<!DOCTYPE html>
     var html = '';
     for (var i = 0; i < fs.length; i++) {
       var sel = fs[i].locale === selected ? ' selected' : '';
-      html += '<option value="' + esc(fs[i].locale) + '" data-pref="' + esc(fs[i].preferredLanguage) + '"' + sel + '>' + esc(fs[i].label) + '</option>';
+      html +=
+        '<option value="' + esc(fs[i].locale) + '" data-pref="' + esc(fs[i].preferredLanguage) +
+        '" data-index="' + (fs[i].index === undefined ? '' : esc(fs[i].index)) + '"' + sel + '>' +
+        esc(fs[i].label) + '</option>';
     }
     return html;
   }
@@ -1069,7 +1080,7 @@ const PAGE = String.raw`<!DOCTYPE html>
     $('acc-locale').innerHTML = localeOptions('');
     var self = $('acc-locale');
     // make sure Arabic is included (in case state not yet loaded)
-    if (self.options.length === 0) $('acc-locale').innerHTML = '<option value="ar-SA" data-pref="ar">العربية (Arabic)</option><option value="en-US" data-pref="en">English</option>';
+    if (self.options.length === 0) $('acc-locale').innerHTML = '<option value="ar-SA" data-pref="ar" data-index="2">العربية (Arabic)</option><option value="en-US" data-pref="en" data-index="0">English</option>';
   });
 
   function accountArgs(extra) {
@@ -1084,10 +1095,13 @@ const PAGE = String.raw`<!DOCTYPE html>
     if (!name) { statusEl($('acc-list'), 'name is required', 'bad'); return; }
     var sel = $('acc-locale');
     var locale = sel.value;
-    var pref = sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].getAttribute('data-pref') : locale;
+    var opt = sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0] : null;
+    var pref = opt ? opt.getAttribute('data-pref') : locale;
+    var idx = opt ? opt.getAttribute('data-index') : '';
     var args = ['create-account', '--account', file, '--name', name, '--once'];
     if ($('acc-region').value.trim()) args.push('--region', $('acc-region').value.trim());
     if (locale) args.push('--locale', locale, '--preferred-language', pref || locale);
+    if (idx !== '' && idx !== null) args.push('--locale-index', idx);
     setAccount(file);
     statusEl($('acc-list'), 'creating ' + file + ' …', 'warn');
     api('POST', '/api/cli', { args: args, timeout: 90000 }).then(function (j) {
@@ -1143,7 +1157,7 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('acc-cleanup').addEventListener('click', function () { accRunSimple('cleanup', ['cleanup']); });
   $('acc-arabic').addEventListener('click', function () {
     statusEl($('acc-list'), 'setting Arabic on all accounts …', 'warn');
-    api('POST', '/api/accounts-language', { locale: 'ar-SA', preferredLanguage: 'ar' }).then(function (j) {
+    api('POST', '/api/accounts-language', { locale: 'ar-SA', preferredLanguage: 'ar', localeIndex: 2 }).then(function (j) {
       $('acc-list').textContent = j.ok
         ? 'Arabic (ar-SA / ar) set on ' + j.changed.length + ' of ' + j.total + ' account file(s).' +
           (j.changed.length ? '\n' + j.changed.join(', ') : '\nAll accounts were already Arabic.')
@@ -1687,10 +1701,11 @@ const PAGE = String.raw`<!DOCTYPE html>
       var cfg = JSON.parse($('cfg-json').value);
       cfg.locale = 'ar-SA';
       cfg.preferredLanguage = 'ar';
+      cfg.localeIndex = 2;
       $('cfg-json').value = pretty(cfg);
-      api('POST', '/api/config', { config: { locale: 'ar-SA', preferredLanguage: 'ar' } }).then(function (j) {
+      api('POST', '/api/config', { config: { locale: 'ar-SA', preferredLanguage: 'ar', localeIndex: 2 } }).then(function (j) {
         if (!j.ok) { $('cfg-status').textContent = j.error || 'error'; $('cfg-status').className = 'status bad'; return; }
-        api('POST', '/api/accounts-language', { locale: 'ar-SA', preferredLanguage: 'ar' }).then(function (k) {
+        api('POST', '/api/accounts-language', { locale: 'ar-SA', preferredLanguage: 'ar', localeIndex: 2 }).then(function (k) {
           $('cfg-status').textContent = 'game language set to Arabic (config.json + ' +
             (k.ok ? k.changed.length + ' account file(s)' : 'accounts skipped') + ')';
           $('cfg-status').className = 'status ok';

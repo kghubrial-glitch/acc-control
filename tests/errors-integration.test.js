@@ -197,7 +197,10 @@ test('Client: неверный battleTransport — INVALID_ARGUMENT, ENOENT ак
     );
     // Файла accounts нет — Store.read отдаёт fallback, конструктор не падает.
     const client = new Client({ root });
-    assert.deepEqual(client.account, { hi: 0, lo: 0 });
+    assert.equal(client.account.hi, 0);
+    assert.equal(client.account.lo, 0);
+    // Без config.json язык по умолчанию — English (0); constructor не падает.
+    assert.equal(client.account.localeIndex, 0);
     assert.equal(client.state, 'stopped');
   } finally {
     clean(root);

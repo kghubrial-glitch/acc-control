@@ -1,4 +1,5 @@
 const ByteStream = require('../../../DataStream/ByteStream');
+const { resolveLocaleIndex } = require('../../../lib/Locales');
 module.exports = class LoginMessage {
   constructor(config, account) {
     this.config = config;
@@ -18,7 +19,17 @@ module.exports = class LoginMessage {
     this.ByteStream.writeInt(c.clientBuild ?? c.build);
     this.ByteStream.writeOptionalString(c.fingerprintHash);
     this.ByteStream.writeOptionalString(a.deviceId ?? null); // native +0xe8
-    this.ByteStream.writeDataReference(1, 0);
+    // class 1 = LOCALE; the index follows csv_logic/locales.csv order (0=EN, 2=AR,
+    // 17=RU, 18=TR). This is the game language/community sent to the server, while
+    // the string below is only the device locale.
+    this.ByteStream.writeDataReference(
+      1,
+      Number.isInteger(a.localeIndex)
+        ? a.localeIndex
+        : Number.isInteger(c.localeIndex)
+          ? c.localeIndex
+          : resolveLocaleIndex(a.locale || c.locale, 0),
+    );
     this.ByteStream.writeRequiredString(a.locale || c.locale || 'en-US');
     this.ByteStream.writeOptionalString(a.advertisingId ?? null); // +0x108
     this.ByteStream.writeBoolean(false);

@@ -8,6 +8,14 @@
 ## [Unreleased]
 
 ### Добавлено
+- **Игровой язык аккаунта теперь реально ставит сообщество**. Логин отправлял
+  `preferredLanguage` строкой, а сервер ждёт DataReference `{class:1, index}` по
+  `csv_logic/locales.csv` (0=EN, 2=AR, 17=RU, 18=TR) — поэтому «арабские» аккаунты
+  попадали в английское сообщество. Теперь `LoginMessage` пишет индекс
+  (`config.localeIndex` → `account.localeIndex` → авто-резолв из locale), а
+  `applyLanguageToAccounts` прописывает `localeIndex` во все `accounts/*.json`, чтобы
+  **существующие** аккаунты переехали в арабское сообщество при следующем входе.
+  Добавлен `--locale-index N` и модуль `lib/Locales.js`; 2 теста в `tests/locales.test.js`.
 - **Диагностика `LoginFailed`**: известные коды входа теперь печатают, что делать, а не
   только число. Для `error=8` (блок лицензии не от этой сборки) в лог уходит подсказка
   про `client-license.bin` и `docs/APK-UPDATE.md`; при расхождении версий сервера и
