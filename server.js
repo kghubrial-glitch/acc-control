@@ -683,7 +683,7 @@ const PAGE = String.raw`<!DOCTYPE html>
 
     <section id="tab-accounts" class="tab">
       <h2>Accounts</h2>
-      <p class="subtitle">Registry, creation and login. <b>Arabic (العربية)</b> is available as the account's game language.</p>
+      <p class="subtitle">Registry, creation and login. <b>Arabic (العربية)</b> is the default account language — new and existing accounts log in as <code>ar-SA</code>.</p>
       <div class="grid2">
         <div class="panel">
           <h3>Create account</h3>
