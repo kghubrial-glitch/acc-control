@@ -142,6 +142,52 @@ function ownedPID() {
     return null;
   }
 }
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Остатки после жёсткого завершения (хост выключили и включили): fleet.pid жив,
+// а процесс умер. Если процесс жив и это наш флот — сначала останавливаем его,
+// затем убираем fleet.pid и fleet-status.json, чтобы консоль снова разрешила старт.
+async function removeStaleFleetState(signal) {
+  const pid = ownedPID();
+  if (pid && signal) {
+    try {
+      process.kill(pid, signal);
+    } catch {}
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && isAlive(pid)) await sleep(200);
+    if (isAlive(pid)) {
+      // Процесс «завис» и не отвечает на SIGTERM — жёстко завершаем. Это наш флот
+      // (подтверждено ownedPID), чужой процесс не тронем.
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+      const killUntil = Date.now() + 3000;
+      while (Date.now() < killUntil && isAlive(pid)) await sleep(150);
+    }
+  }
+  const removed = [];
+  for (const file of [PID, path.join(ROOT, 'fleet-status.json')]) {
+    try {
+      if (fs.existsSync(file)) {
+        fs.rmSync(file, { force: true });
+        removed.push(path.relative(ROOT, file));
+      }
+    } catch (error) {
+      console.error(`не удалось удалить ${file}: ${error.message}`);
+    }
+  }
+  return { pid, removed };
+}
 // Бесплатные прокси из публичных списков: один прогон proxy-watch (once) собирает и
 // проверяет пул working-proxies.json, через который флот получает ротацию IP.
 function buildFreeProxyPool() {
@@ -185,12 +231,32 @@ async function main() {
   }
   if (command === 'stop') {
     const pid = ownedPID();
-    if (pid) process.kill(pid, 'SIGTERM');
-    console.log(pid ? 'Остановка запрошена' : 'Процесс не запущен');
+    const statusExists = fs.existsSync(path.join(ROOT, 'fleet-status.json'));
+    if (pid) {
+      process.kill(pid, 'SIGTERM');
+      console.log('Остановка запрошена');
+    } else if (fs.existsSync(PID) || statusExists) {
+      // Процесс мёртв (host перезапускали), а fleet.pid/fleet-status.json остались —
+      // консоль показывала ботов «онлайн». Очищаем остатки, чтобы можно было стартовать заново.
+      const state = await removeStaleFleetState();
+      console.log(
+        `Процесс не запущен; устаревшее состояние очищено (${state.removed.join(', ') || 'ничего'}). Запустите fleet снова, чтобы боты вошли повторно.`,
+      );
+    } else {
+      console.log('Процесс не запущен');
+    }
+    return;
+  }
+  if (command === 'reset') {
+    // Жёсткая перезагрузка флота: останавливает живой процесс (если есть), чистит
+    // fleet.pid и fleet-status.json. Боты не удаляются — их токены лежат в accounts/.
+    const state = await removeStaleFleetState('SIGTERM');
+    const result = { ok: true, ...state, note: 'Боты не удалены; их токены остались в accounts/. Запустите fleet, чтобы войти снова' };
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
   if (command === 'start') {
-    if (ownedPID()) throw new Error('Процесс уже запущен; используйте status или stop');
+    if (ownedPID()) throw new Error('Процесс уже запущен; используйте status, stop или reset');
     if (options.freeProxies && !options.proxyPoolFile) {
       const pool = await buildFreeProxyPool();
       if (pool) argv.push('--proxy-pool-file', pool);

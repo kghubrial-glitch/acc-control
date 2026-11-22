@@ -305,15 +305,36 @@ function readBody(req) {
   });
 }
 
-function stateSnapshot() {
-  const config = readJSON(CONFIG_PATH, {});
-  const fleetStatus = readJSON(FLEET_STATUS, null);
+// Живой ли pid нашего флота. После внезапной перезагрузки хоста fleet.pid остаётся
+// с мёртвым (или переиспользованным) PID — нельзя верить файлу, только процессу.
+function fleetPIDInfo() {
   let pid = null;
   try {
     if (fs.existsSync(FLEET_PID)) pid = Number(String(fs.readFileSync(FLEET_PID, 'utf8')).trim());
   } catch {
     /* ignore */
   }
+  let alive = false;
+  if (pid && Number.isInteger(pid) && pid > 0) {
+    try {
+      process.kill(pid, 0);
+      alive = true;
+      // Без /proc (macOS/BSD) нечем подтвердить — считаем живым, чтобы не трогать чужой PID.
+      if (fs.existsSync(`/proc/${pid}/cmdline`)) {
+        alive = fs.readFileSync(`/proc/${pid}/cmdline`).includes(Buffer.from('tools/fleet.js'));
+      }
+    } catch (error) {
+      alive = error.code === 'EPERM';
+    }
+  }
+  return { pid, alive };
+}
+
+function stateSnapshot() {
+  const config = readJSON(CONFIG_PATH, {});
+  const fleetStatus = readJSON(FLEET_STATUS, null);
+  const fleet = fleetPIDInfo();
+  const pid = fleet.pid;
   let accountFiles = [];
   try {
     accountFiles = fs
@@ -351,8 +372,9 @@ function stateSnapshot() {
     auth: !!WEB_TOKEN,
     accountFiles,
     accountsDirExists: fs.existsSync(ACCOUNTS_DIR),
-    fleet: fleetStatus ? { ...fleetStatus, pid } : { pid, running: false, missing: true },
-    fleetRunning: !!pid,
+    fleet: fleetStatus ? { ...fleetStatus, pid, running: fleet.alive } : { pid, running: fleet.alive, missing: true },
+    fleetRunning: fleet.alive,
+    fleetStale: !!pid && !fleet.alive,
     fleetLogTail: logTail.split('\n').filter(Boolean).slice(-200),
   };
 }
@@ -747,6 +769,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       <p class="subtitle">Background bot fleet. Existing accounts are <b>logged back in</b> with their stored token — only missing files create brand-new bots.</p>
       <div class="cards" id="fleet-cards"></div>
       <div id="fleet-paused-note" class="outbox err" style="display:none"></div>
+      <div id="fleet-stale-note" class="outbox err" style="display:none"></div>
       <div class="panel">
         <h3 id="fleet-status-title">Fleet status</h3>
         <div id="fleet-status" class="outbox">loading…</div>
@@ -785,6 +808,7 @@ const PAGE = String.raw`<!DOCTYPE html>
             <button id="fleet-resume">Resume</button>
             <button id="fleet-stop">Stop</button>
             <button id="fleet-status-btn">Status</button>
+            <button class="primary" id="fleet-recover" title="Clear leftover state after a crash/reboot and log all existing bots back in (never creates new accounts)">Recover fleet</button>
           </div>
           <p class="hint">Retry replays failed/blocked bots. Re-login closes and reconnects every bot with its own token — the fastest way back after Stop/Pause.</p>
         </div>
@@ -993,12 +1017,14 @@ const PAGE = String.raw`<!DOCTYPE html>
       cards += card('Crypto', s.cryptoMode || '-', 'small');
       cards += card('Login layout', s.loginLayout || '-', 'small');
       cards += card('Account files', String(s.accountFiles ? s.accountFiles.length : 0), '');
-      cards += card('Fleet', s.fleetRunning ? 'running' : 'stopped', 'small');
+      cards += card('Fleet', s.fleetRunning ? 'running' : (s.fleetStale ? 'stale (process dead)' : 'stopped'), s.fleetRunning ? '' : 'small');
       cards += card('Interface lang', s.uiLanguage || 'auto', 'small');
       $('dash-cards').innerHTML = cards;
 
       var f = s.fleet || {};
-      $('dash-fleet-badge').textContent = s.fleetRunning ? 'running (PID ' + (f.pid || '?') + ')' : 'stopped';
+      $('dash-fleet-badge').textContent = s.fleetRunning
+        ? 'running (PID ' + (f.pid || '?') + ')'
+        : (s.fleetStale ? 'STALE — process is dead, bots are NOT online' : 'stopped');
       $('dash-fleet-badge').className = 'badge ' + (s.fleetRunning ? 'pill on' : 'pill off');
       $('dash-fleet').textContent = pretty(f);
       if (s.fleetRunning && f.metrics) {
@@ -1007,8 +1033,12 @@ const PAGE = String.raw`<!DOCTYPE html>
       }
       $('dash-cards').innerHTML = cards;
       var ds = $('dash-bots-note');
-      if (ds) ds.textContent = s.fleetRunning ? '' : '— fleet stopped; launch it on the Fleet tab to log the same bots back in';
-      renderBots(s.fleetRunning ? f : null, $('dash-bots'));
+      if (ds) ds.textContent = s.fleetRunning
+        ? ''
+        : (s.fleetStale
+          ? '— bots shown as online are leftover state from an unexpected shutdown. Use “Recover fleet” on the Fleet tab, then Launch to log them all back in.'
+          : '— fleet stopped; launch it on the Fleet tab to log the same bots back in');
+      renderBots(s.fleetRunning || s.fleetStale ? f : null, $('dash-bots'));
       $('dash-log').textContent = s.fleetLogTail.slice(-80).join('\n') || '(empty)';
 
       // (re)fill the account-language selector now that the locale list is known
@@ -1287,18 +1317,58 @@ const PAGE = String.raw`<!DOCTYPE html>
   syncClub('fleet-clubtag', 'fleet-qclub');
   syncClub('fleet-qclub', 'fleet-clubtag');
 
-  $('fleet-start').addEventListener('click', function () {
-    var args = ['start', '--first', $('fleet-first').value || '1', '--count', $('fleet-count').value || '3'];
+  function fleetStartArgs(overrides) {
+    var o = overrides || {};
+    var args = ['start', '--first', String(o.first !== undefined ? o.first : ($('fleet-first').value || '1'))];
+    var count = o.count !== undefined ? o.count : ($('fleet-count').value || '3');
+    args.push('--count', String(count));
     var par = parseInt($('fleet-concurrency').value, 10);
     if (par >= 1 && par <= 200) args.push('--concurrency', String(par));
     if ($('fleet-prefix').value.trim()) args.push('--name-prefix', $('fleet-prefix').value.trim());
-    var club = $('fleet-clubtag').value.trim();
+    var club = $('fleet-clubtag').value.trim() || $('fleet-qclub').value.trim();
     if (club) args.push('--club-tag', club);
     if ($('px-use') && $('px-use').checked)
       args.push('--proxy-pool-file', $('px-file').value.trim() || 'working-proxies.json');
     var reuse = parseInt($('fleet-reuse').value, 10);
     if (reuse >= 1 && reuse <= 100) args.push('--proxy-reuse', String(reuse));
-    fleetRun(args, 'start');
+    return args;
+  }
+  $('fleet-start').addEventListener('click', function () {
+    fleetRun(fleetStartArgs(), 'start');
+  });
+  // После внезапного отключения (host reboot) fleet-status показывает ботов «онлайн»,
+  // хотя процесса нет. Recover: сброс устаревшего состояния (reset) + повторный вход
+  // всех существующих ботов по сохранённым токенам — без создания новых аккаунтов.
+  $('fleet-recover').addEventListener('click', function () {
+    api('GET', '/api/state').then(function (sj) {
+      var st = (sj && sj.state) || STATE.state || {};
+      var indexes = (st.accountFiles || [])
+        .map(function (n) { var m = /^bot-(\d+)\.json$/.exec(n); return m ? parseInt(m[1], 10) : null; })
+        .filter(function (n) { return Number.isInteger(n); })
+        .sort(function (a, b) { return a - b; });
+      var first = indexes.length ? indexes[0] : 1;
+      // Используем только реально существующие файлы ботов: восстановление не создаёт новые аккаунты.
+      var count = indexes.length
+        ? indexes[indexes.length - 1] - first + 1
+        : (parseInt($('fleet-count').value, 10) || 3);
+      api('POST', '/api/fleet', { args: ['status'], timeout: 15000 }).then(function (s) {
+        var cur = s.result || s;
+        if (cur && cur.running) {
+          if (!window.confirm('The fleet process IS running (' + count + ' bots). Recover will stop it, clear its state, and log all bots back in. Continue?')) return;
+        }
+        statusEl($('fleet-status'), 'recovering fleet: clearing stale state…', 'warn');
+        api('POST', '/api/fleet', { args: ['reset'], timeout: 20000 }).then(function (j) {
+          if (!j.ok) {
+            $('fleet-status').textContent = pretty(j);
+            $('fleet-status').className = 'outbox err';
+            return;
+          }
+          $('fleet-status').textContent = 'cleared stale state — logging ' + count + ' existing bot(s) back in …';
+          $('fleet-status').className = 'outbox warn';
+          fleetRun(fleetStartArgs({ first: first, count: count }), 'recover → login ' + count + ' bot(s)');
+        });
+      });
+    });
   });
   $('fleet-join-all').addEventListener('click', function () {
     var tag = $('fleet-qclub').value.trim();
@@ -1412,6 +1482,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       $('fleet-status-title').textContent = status && status.running ? 'Fleet status — running' : 'Fleet status — stopped';
       renderFleetCards(status);
       renderBots(status);
+      renderFleetStale(status);
     });
     // Живой дашборд: статус сам обновляется, пока открыт Fleet.
     if (fleetRefreshTimer) clearTimeout(fleetRefreshTimer);
@@ -1502,6 +1573,26 @@ const PAGE = String.raw`<!DOCTYPE html>
     box.className = 'outbox bots';
     box.innerHTML = summary +
       '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>account</th><th>info</th><th>actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  // После внезапной перезагрузки хоста fleet.pid/status остаются, а процесс мёртв:
+  // боты показываются «онлайн», но это устаревшее состояние. Явно предупреждаем.
+  function renderFleetStale(status) {
+    var note = $('fleet-stale-note');
+    if (!note) return;
+    var stale = status && !status.running && status.bots && status.bots.length;
+    if (!stale) {
+      note.style.display = 'none';
+      return;
+    }
+    var on = status.bots.filter(function (b) { return ['online', 'battle', 'in-battle', 'spectating'].includes(b.status); }).length;
+    var onLabel = on === 1 ? '1 bot is' : on + ' bots are';
+    var all = status.bots.length === 1 ? 'this bot' : 'all ' + status.bots.length + ' existing bots';
+    note.style.display = 'block';
+    note.innerHTML = '<b>Fleet process is NOT running, but ' + onLabel + ' shown as “online”.</b> ' +
+      'This is leftover state from an unexpected shutdown (e.g. host reboot) — the bots are not actually online, ' +
+      'and Stop/actions cannot reach a process that is not there. Press <b>Recover fleet</b> below: it clears the stale ' +
+      'state and logs ' + all + ' back in with their stored tokens (no new accounts are created).';
   }
 
   // Per-bot quick actions — each bot acts independently (its own login, its own IP).
