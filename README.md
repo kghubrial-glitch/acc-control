@@ -150,6 +150,17 @@ The first login of a brand-new bot (registration + nickname + re-login) is given
 server no longer leaves most of a big fleet stuck in `failed`. Persistent refusals
 (e.g. `blocked`) are not retried automatically; `retry` replays those manually.
 
+**Login comes first, then everything else.** A `command` (and every web button) waits until the
+target bot is actually online before running — up to `--command-login-timeout` (default 90 s) —
+instead of failing with “not logged in yet”. While bots are still logging in, commands simply
+queue; command files are executed in parallel, so clicking several buttons at once does not make
+later clicks wait. Login parallelism goes up to `--concurrency 200`; with a proxy pool it even
+auto-sizes to `reuse × pool size`.
+
+Rate limiting is **not** login-only: once connected, every action (club joins, chat, friends,
+commands…) runs on the bot's existing proxied socket, so a fleet spread over the pool performs
+actions from many IPs at once, and a reconnect silently re-rotates to another IP.
+
 The background process writes `fleet.log` and `fleet-status.json`, reconnects after a drop and
 asks for a Termux wake-lock (no-op on Windows/Linux/macOS). Android may still kill Termux — for
 24/7 operation you need a server, not a phone. The process existing does not mean all bots are

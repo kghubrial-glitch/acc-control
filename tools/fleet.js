@@ -215,10 +215,11 @@ async function main() {
     const file = path.join(ROOT, '.runtime', 'commands', `${id}.json`);
     Store.write(file, { bot: options.bot, all: options.all, action, args: options });
     const result = path.join(ROOT, '.runtime', 'results', `${id}.json`);
+    // Действие ждёт «первого входа» ботов (login → потом действие), поэтому ориентир:
+    // base timeout + волны логинов/действий. Одна волна ≈ 8 ботов командой параллельно.
+    const requested = options.all ? Store.read(path.join(ROOT, 'fleet-status.json'), {}).requested || 1 : 1;
     const deadline =
-      Date.now() +
-      Number(options.timeout || 60000) *
-        (options.all ? Store.read(path.join(ROOT, 'fleet-status.json'), {}).requested || 1 : 1);
+      Date.now() + Number(options.timeout || 60000) + (options.all ? Math.ceil(requested / 8) * 5000 : 0);
     while (!fs.existsSync(result)) {
       if (Date.now() > deadline || !ownedPID())
         throw new Error(`Результат ещё не получен. ID: ${id}; не повторяйте действие автоматически`);

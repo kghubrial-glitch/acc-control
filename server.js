@@ -698,37 +698,39 @@ const PAGE = String.raw`<!DOCTYPE html>
       </div>
       <div class="grid2">
         <div class="panel">
-          <h3>Start fleet</h3>
+          <h3>1 · Create accounts &amp; log in</h3>
+          <p class="hint">Every bot registers (if new) and logs in <b>first</b>. Nothing else runs until the login is confirmed — step 2 waits for it automatically.</p>
           <div class="row">
             <div class="field"><label>From #</label><input id="fleet-first" value="1" style="width:64px"></div>
             <div class="field"><label>Bots</label><input id="fleet-count" value="3" style="width:64px"></div>
-            <div class="field"><label>Parallel</label><input id="fleet-concurrency" value="5" style="width:64px"></div>
+            <div class="field"><label>Parallel logins</label><input id="fleet-concurrency" value="6" style="width:64px"></div>
             <div class="field" style="flex:1"><label>Name prefix</label><input id="fleet-prefix" placeholder="Bot"></div>
           </div>
           <div class="row">
-            <div class="field" style="flex:1"><label>Club tag to auto-join after login</label><input id="fleet-clubtag" placeholder="#TAG"></div>
+            <div class="field" style="flex:1"><label>Auto-join club tag after login (optional — one-click create + join)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
             <div class="field"><label>Per-IP reuse</label><input id="fleet-reuse" value="5" style="width:52px"></div>
           </div>
-          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Launch bots</button></div>
-          <p class="hint">Each bot logs in (and joins the club) in background. Failed first logins are retried automatically (fast, growing pauses). With a proxy pool, each proxy handles up to “Per-IP reuse” bots at once — so 3 proxies × reuse 5 = 15 parallel logins. Start again with a higher count to add more bots.</p>
+          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Create accounts &amp; log in</button></div>
+          <p class="hint">Failed first logins retry fast with growing pauses. With a proxy pool, each proxy handles up to “Per-IP reuse” bots at once (3 proxies × reuse 5 = 15 parallel logins). Starting again with a higher count adds more bots.</p>
         </div>
         <div class="panel">
-          <h3>Quick actions</h3>
+          <h3>2 · After login</h3>
+          <p class="hint">Actions are <b>queued</b>: they wait until each bot is online, then run on that bot’s proxied IP. No more “not logged in yet” errors.</p>
           <div class="row">
             <div class="field" style="flex:1"><label>Club tag</label><input id="fleet-qclub" placeholder="#TAG"></div>
           </div>
           <div class="row" style="margin-top:8px">
-            <button class="ghost" id="fleet-join-all">Join club → all bots</button>
-            <button class="ghost" id="fleet-leave-all">Leave club → all bots</button>
+            <button class="primary" id="fleet-join-all">Join club — all bots</button>
+            <button class="ghost" id="fleet-leave-all">Leave club — all bots</button>
           </div>
-          <div class="row" style="margin-top:10px">
-            <button id="fleet-retry">Retry</button>
+          <div class="row" style="margin-top:12px">
+            <button id="fleet-retry">Retry failed</button>
             <button id="fleet-pause">Pause</button>
             <button id="fleet-resume">Resume</button>
             <button id="fleet-stop">Stop</button>
             <button id="fleet-status-btn">Status</button>
           </div>
-          <p class="hint">Retry replays all failed/blocked bots. The club field also pre-fills “Start fleet”.</p>
+          <p class="hint">Retry replays failed/blocked bots. The club field stays in sync with step 1.</p>
         </div>
       </div>
       <div class="panel">
@@ -741,7 +743,7 @@ const PAGE = String.raw`<!DOCTYPE html>
         </div>
         <div class="muted" id="fleet-action-hint" style="margin-top:6px;font-size:12px"></div>
         <div class="row" style="margin-top:8px">
-          <label class="check"><input type="checkbox" id="fleet-all"> All bots — send to every bot (for bulk club/logins)</label>
+          <label class="check"><input type="checkbox" id="fleet-all"> All bots — send to every bot (waits for each bot to be online first)</label>
         </div>
       </div>
       <div class="panel">
@@ -1179,7 +1181,9 @@ const PAGE = String.raw`<!DOCTYPE html>
   function fleetRun(args, label) {
     $('fleet-status').textContent = label + ' …';
     $('fleet-status').className = 'outbox';
-    api('POST', '/api/fleet', { args: args, timeout: 120000 }).then(function (j) {
+    // Команды ждут входа ботов и исполняются в фоне — даём им разумный простор.
+    var timeout = args[0] === 'command' ? 300000 : 120000;
+    api('POST', '/api/fleet', { args: args, timeout: timeout }).then(function (j) {
       $('fleet-status').textContent = pretty(j);
       $('fleet-status').className = 'outbox' + (j.ok ? '' : ' err');
       refreshFleet();
@@ -1202,7 +1206,7 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('fleet-start').addEventListener('click', function () {
     var args = ['start', '--first', $('fleet-first').value || '1', '--count', $('fleet-count').value || '3'];
     var par = parseInt($('fleet-concurrency').value, 10);
-    if (par >= 1 && par <= 20) args.push('--concurrency', String(par));
+    if (par >= 1 && par <= 200) args.push('--concurrency', String(par));
     if ($('fleet-prefix').value.trim()) args.push('--name-prefix', $('fleet-prefix').value.trim());
     var club = $('fleet-clubtag').value.trim();
     if (club) args.push('--club-tag', club);
@@ -1215,10 +1219,10 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('fleet-join-all').addEventListener('click', function () {
     var tag = $('fleet-qclub').value.trim();
     if (!tag) { $('fleet-status').textContent = 'Enter a club tag first (e.g. #ABC …).'; $('fleet-status').className = 'outbox err'; return; }
-    fleetRun(['command', '--all', '--action', 'join-club', '--club-tag', tag], 'join-club (all bots)');
+    fleetRun(['command', '--all', '--action', 'join-club', '--club-tag', tag], 'join-club → all bots (waits for login, then joins)');
   });
   $('fleet-leave-all').addEventListener('click', function () {
-    fleetRun(['command', '--all', '--action', 'leave-club'], 'leave-club (all bots)');
+    fleetRun(['command', '--all', '--action', 'leave-club'], 'leave-club → all bots (waits for login)');
   });
 
   // ------------------------- proxies (free IP rotation) -------------------------

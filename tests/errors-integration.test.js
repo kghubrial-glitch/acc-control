@@ -286,9 +286,17 @@ test('Fleet: runOne отличает отказ сервера от сети и 
   const original = Actions.execute;
   try {
     const offline = await fleet.runOne(1, 'friends', {});
-    assert.equal(offline.error, 'Бот ещё не вошёл');
+    assert.equal(offline.error, 'Бот не запущен');
     assert.equal(offline.code, 'STATE_ERROR');
     assert.equal(offline.kind, 'state');
+
+    // Слот есть, но бот не вошёл: runOne ждёт вход (login-first) и сообщает о таймауте,
+    // а не роняет действие с «Бот ещё не вошёл».
+    fleet.clients.set(1, { state: 'failed', index: 1, close() {}, off() {} });
+    const notLogged = await fleet.runOne(1, 'friends', {});
+    assert.match(notLogged.error, /Бот не вошёл/);
+    assert.equal(notLogged.code, 'TIMEOUT');
+    assert.equal(notLogged.kind, 'timeout');
 
     fleet.clients.set(1, { state: 'online', index: 1, close() {} });
     Actions.execute = async () => {
