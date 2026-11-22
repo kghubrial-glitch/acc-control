@@ -568,3 +568,26 @@ test('вход в клуб отмечает slot.joined по реальной ц
     clean(root);
   }
 });
+
+test('именной аккаунт (probe.json) усыновляется слотом вместо создания нового', async () => {
+  const root = tempRoot();
+  try {
+    fs.mkdirSync(path.join(root, 'accounts'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, 'accounts', 'probe.json'),
+      JSON.stringify({ passToken: 'saved-token', hi: 7, lo: 99, name: 'ProbeAr' }),
+    );
+    const fleet = new Fleet(root, { count: 2 });
+    try {
+      assert.equal(fleet.slots[0].file, 'probe.json', 'первый слот усыновляет именной аккаунт');
+      assert.equal(fleet.slots[1].file, 'bot-2.json', 'второй слот — новый bot-2.json');
+      assert.equal(fleet.slots[0].registered, true, 'усыновлённый аккаунт считает токен');
+      assert.equal(fleet.slots[0].name, 'ProbeAr');
+      assert.equal(fleet.accountFile.get(1), 'probe.json');
+    } finally {
+      fleet.stop();
+    }
+  } finally {
+    clean(root);
+  }
+});

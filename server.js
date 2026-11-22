@@ -766,7 +766,7 @@ const PAGE = String.raw`<!DOCTYPE html>
 
     <section id="tab-fleet" class="tab">
       <h2>Fleet</h2>
-      <p class="subtitle">Background bot fleet. Existing accounts are <b>logged back in</b> with their stored token — only missing files create brand-new bots.</p>
+      <p class="subtitle">Your saved accounts are <b>reused automatically</b> (stored tokens — nothing is re-created). Only indexes you add make brand-new accounts.</p>
       <div class="cards" id="fleet-cards"></div>
       <div id="fleet-paused-note" class="outbox err" style="display:none"></div>
       <div id="fleet-stale-note" class="outbox err" style="display:none"></div>
@@ -777,80 +777,99 @@ const PAGE = String.raw`<!DOCTYPE html>
       <div class="grid2">
         <div class="panel">
           <h3>1 · Launch fleet</h3>
-          <p class="hint">Bots that already have an account file log back in automatically (stored token — they are <b>not</b> new). New files are created and registered first, then everything else waits for login.</p>
+          <p class="hint">Pick how many bots to run. Accounts that already exist log back in with their saved token — they are <b>not</b> created again.</p>
+          <div id="fleet-accounts-note" class="muted" style="margin-bottom:8px"></div>
           <div class="row">
-            <div class="field"><label>From #</label><input id="fleet-first" value="1" style="width:64px"></div>
-            <div class="field"><label>Bots</label><input id="fleet-count" value="3" style="width:64px"></div>
+            <div class="field"><label>Bots (how many)</label><input id="fleet-count" value="3" style="width:74px"></div>
+            <div class="field" style="flex:1"><label>Start from #</label><input id="fleet-first" value="1" style="width:72px"></div>
+            <div class="field" style="flex:1"><label>Preset</label><select id="fleet-sel-preset">
+              <option value="">First N (from #1)</option>
+              <option value="first:10">First 10</option>
+              <option value="first:20">First 20</option>
+              <option value="first:30">First 30</option>
+              <option value="all">All saved accounts</option>
+              <option value="custom">Custom… (type exact bots)</option>
+            </select></div>
+          </div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>Or exact bots (overrides above): <code>1-50</code> · <code>5,10-15</code> · <code>first:20</code> · <code>last:5</code> · <code>random:20</code> · <code>even</code>/<code>odd</code></label><input id="fleet-select" placeholder="e.g. 1-50,75,90-"></div>
+          </div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>New bot names — template (<code>{index}</code> <code>{ordinal}</code> <code>{word}</code> <code>{rand}</code> <code>{pad3}</code>)</label><input id="fleet-name-template" placeholder="Bot{index}"></div>
+            <div class="field"><label>Name start</label><input id="fleet-name-start" style="width:70px" placeholder="index"></div>
+            <div class="field"><label>Zero-pad</label><input id="fleet-name-pad" style="width:56px" placeholder="0"></div>
+            <label class="check" style="align-self:flex-end"><input type="checkbox" id="fleet-name-random"> Random names</label>
+          </div>
+          <div class="row">
             <div class="field"><label>Parallel logins</label><input id="fleet-concurrency" value="6" style="width:64px"></div>
             <div class="field"><label>Per-IP reuse</label><input id="fleet-reuse" value="5" style="width:52px"></div>
           </div>
           <div class="row">
-            <div class="field" style="flex:1"><label>Bot selection (optional — overrides From/Bots): <code>1-50,75,90-</code> · <code>first:20</code> · <code>random:30</code> · <code>even</code></label><input id="fleet-select" placeholder="1-50,75,90-"></div>
+            <div class="field" style="flex:1"><label>Club tag (optional — join it)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
+            <label class="check" style="align-self:flex-end"><input type="checkbox" id="fleet-fill-start" checked> Join club in the background (waits when full)</label>
           </div>
-          <div class="row">
-            <div class="field" style="flex:1"><label>Name template (new bots): <code>{index}</code> <code>{ordinal}</code> <code>{rand}</code> <code>{word}</code> <code>{pad3}</code></label><input id="fleet-name-template" placeholder="Bot{index}"></div>
-            <div class="field"><label>Name start</label><input id="fleet-name-start" style="width:70px" placeholder="index"></div>
-            <div class="field"><label>Zero-pad</label><input id="fleet-name-pad" style="width:56px" placeholder="0"></div>
-          </div>
-          <div class="row"><label class="check"><input type="checkbox" id="fleet-name-random"> Random names (word + number)</label></div>
-          <div class="row">
-            <div class="field" style="flex:1"><label>Club tag (optional — one-click create + join)</label><input id="fleet-clubtag" placeholder="#TAG"></div>
-            <label class="check" style="align-self:flex-end"><input type="checkbox" id="fleet-fill-start"> Capacity-aware club fill (queue bots that don’t fit, auto-rejoin if kicked)</label>
-          </div>
-          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Launch fleet — log in / create</button></div>
-          <p class="hint">Failed first logins retry fast with growing pauses. With a proxy pool, each proxy handles up to “Per-IP reuse” bots at once (3 proxies × reuse 5 = 15 parallel logins). Starting again with a higher count logs the same bots back in and adds new ones.</p>
+          <div class="row" style="margin-top:10px"><button class="primary" id="fleet-start">Launch fleet</button></div>
+          <p class="hint">Launching again logs the same accounts back in. Use the <b>Bot selection</b> field to run a specific set.</p>
         </div>
         <div class="panel">
-          <h3>2 · After login</h3>
-          <p class="hint">Actions are <b>queued</b>: they wait until each bot is online, then run on that bot’s proxied IP. No more “not logged in yet” errors.</p>
+          <h3>2 · Club queue</h3>
+          <p class="hint">Bots in the queue join automatically. When the club is full they <b>wait for a free seat</b> — no repeated join attempts. Kicked members are put back in the queue.</p>
           <div class="row">
             <div class="field" style="flex:1"><label>Club tag</label><input id="fleet-qclub" placeholder="#TAG"></div>
+            <div class="field"><label>Capacity</label><input id="fleet-capacity" value="50" style="width:64px" title="Max members your club accepts — the queue stops joining at this number"></div>
           </div>
-          <p class="hint">Actions below target the <b>Bot selection</b> from step 1 (empty = all bots).</p>
           <div class="row">
-            <div class="field"><label>Join concurrency</label><input id="fleet-join-concurrency" value="2" style="width:70px"></div>
-            <div class="field"><label>Retry (sec)</label><input id="fleet-join-retry" value="8" style="width:64px"></div>
-            <div class="field"><label>Max attempts (0=∞)</label><input id="fleet-join-attempts" value="0" style="width:76px"></div>
+            <div class="field"><label>Join at once</label><input id="fleet-join-concurrency" value="2" style="width:64px"></div>
+            <div class="field"><label>Retry (sec)</label><input id="fleet-join-retry" value="15" style="width:64px"></div>
+            <div class="field"><label>Max attempts (0=∞)</label><input id="fleet-join-attempts" value="0" style="width:80px"></div>
           </div>
-          <div class="row" style="margin-top:8px">
-            <button class="primary" id="fleet-fill" title="Queue the selection for the club; waits for free slots and re-joins kicked bots automatically">Fill club — queue (capacity-aware)</button>
-            <button class="ghost" id="fleet-join-all">Join club — now (one shot)</button>
+          <div class="row" style="margin-top:8px;gap:6px">
+            <button class="primary" id="fleet-fill">Queue to club</button>
+            <button class="ghost" id="fleet-join-all">Join now</button>
             <button class="ghost" id="fleet-fill-cancel">Cancel queue</button>
             <button class="ghost" id="fleet-queue-status">Queue status</button>
           </div>
-          <div class="row" style="margin-top:8px">
+          <div class="row" style="margin-top:8px;gap:6px">
             <button class="ghost" id="fleet-leave-all">Leave club</button>
             <button class="ghost" id="fleet-reconnect-all">Re-login (stored tokens)</button>
           </div>
-          <div class="row" style="margin-top:12px">
-            <button id="fleet-retry">Retry failed</button>
-            <button id="fleet-pause">Pause</button>
-            <button id="fleet-resume">Resume</button>
-            <button id="fleet-stop">Stop</button>
-            <button id="fleet-status-btn">Status</button>
-            <button class="primary" id="fleet-recover" title="Clear leftover state after a crash/reboot and log all existing bots back in (never creates new accounts)">Recover fleet</button>
-          </div>
-          <p class="hint">Retry replays failed/blocked bots. Re-login closes and reconnects every bot with its own token — the fastest way back after Stop/Pause.</p>
+          <div id="fleet-queue" class="outbox" style="margin-top:8px;display:none"></div>
         </div>
       </div>
       <div class="panel">
-        <h3>Command bots</h3>
+        <h3>3 · Fleet control</h3>
+        <div class="row" style="gap:6px">
+          <button id="fleet-retry">Retry failed</button>
+          <button id="fleet-pause">Pause</button>
+          <button id="fleet-resume">Resume</button>
+          <button id="fleet-stop">Stop</button>
+          <button id="fleet-status-btn">Status</button>
+          <button class="primary" id="fleet-recover" title="Clear leftover state after a crash/reboot and log all existing bots back in (never creates new accounts)">Recover fleet</button>
+        </div>
+        <p class="hint">Stop keeps every token — launch again to log in the same bots. Recover is only needed after an unexpected host restart.</p>
+      </div>
+      <div class="panel">
+        <h3>4 · Command bots</h3>
+        <p class="hint">Run any action on some or all online bots (clubs, chat, rooms, team, …). Choose a preset or type an exact selection.</p>
         <div class="row">
-          <div class="field" style="flex:1"><label>Bot selection (optional — overrides Bot/All): <code>1,3,5-10</code> · <code>first:10</code> · <code>last:5</code> · <code>random:20</code></label><input id="fleet-cmd-select" placeholder="1,3,5-10"></div>
+          <div class="field" style="flex:1"><label>Which bots</label><select id="fleet-cmd-preset">
+            <option value="">Everything (all bots)</option>
+            <option value="first:10">First 10</option>
+            <option value="first:20">First 20</option>
+            <option value="last:10">Last 10</option>
+            <option value="custom">Custom… (type below)</option>
+          </select></div>
+          <div class="field" style="flex:1"><label>Or exact: <code>1,3,5-10</code> · <code>first:10</code> · <code>random:20</code></label><input id="fleet-cmd-select" placeholder="1,3,5-10"></div>
         </div>
         <div class="row">
-          <div class="field"><label>Bot (ignored when All/selection)</label><input id="fleet-bot" value="1" style="width:60px"></div>
           <div class="field" style="flex:1"><label>Action</label><select id="fleet-action"></select></div>
-          <div class="field" style="flex:1"><label>Extra args</label><input id="fleet-extra" placeholder="e.g. --club-tag #TAG --text Hello"></div>
+          <div class="field" style="flex:2"><label>Extra args</label><input id="fleet-extra" placeholder="e.g. --club-tag #TAG --text Hello"></div>
           <button class="primary" id="fleet-cmd">Send</button>
         </div>
         <div class="muted" id="fleet-action-hint" style="margin-top:6px;font-size:12px"></div>
-        <div class="row" style="margin-top:8px">
-          <label class="check"><input type="checkbox" id="fleet-all"> All bots — send to every bot (waits for each bot to be online first)</label>
-        </div>
       </div>
       <div class="panel">
-        <h3>Bots</h3>
+        <h3>5 · Bots</h3>
         <div id="fleet-bots" class="outbox">no fleet status yet — start a fleet first</div>
       </div>
     </section>
@@ -1384,6 +1403,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       if ($('fleet-fill-start').checked) {
         args.push('--club-fill');
         args = args.concat(joinConfigArgs('--club-fill-'));
+        args.push('--club-capacity', $('fleet-capacity').value || '50');
       }
     }
     if ($('px-use') && $('px-use').checked)
@@ -1394,6 +1414,24 @@ const PAGE = String.raw`<!DOCTYPE html>
   }
   $('fleet-start').addEventListener('click', function () {
     fleetRun(fleetStartArgs(), 'start');
+  });
+  $('fleet-sel-preset').addEventListener('change', function () {
+    var v = $('fleet-sel-preset').value;
+    if (!v || v === 'custom') {
+      if (v === 'custom') $('fleet-select').focus();
+      return;
+    }
+    $('fleet-select').value = v;
+    var m = /^first:(\d+)$/.exec(v);
+    if (m) $('fleet-count').value = m[1];
+  });
+  $('fleet-cmd-preset').addEventListener('change', function () {
+    var v = $('fleet-cmd-preset').value;
+    if (!v || v === 'custom') {
+      if (v === 'custom') $('fleet-cmd-select').focus();
+      return;
+    }
+    $('fleet-cmd-select').value = v;
   });
   // После внезапного отключения (host reboot) fleet-status показывает ботов «онлайн»,
   // хотя процесса нет. Recover: сброс устаревшего состояния (reset) + повторный вход
@@ -1442,7 +1480,7 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('fleet-fill').addEventListener('click', function () {
     var tag = needTag();
     if (!tag) return;
-    var args = ['club-fill', '--club-tag', tag].concat(selectionArgs()).concat(joinConfigArgs('--join-'));
+    var args = ['club-fill', '--club-tag', tag, '--club-capacity', $('fleet-capacity').value || '50'].concat(selectionArgs()).concat(joinConfigArgs('--join-'));
     fleetRun(args, 'fill club → queue selected bots (capacity-aware)');
   });
   $('fleet-join-all').addEventListener('click', function () {
@@ -1455,7 +1493,10 @@ const PAGE = String.raw`<!DOCTYPE html>
     fleetRun(args, 'cancel club queue' + (selectionSpec() ? ' (selection)' : ' (all)'));
   });
   $('fleet-queue-status').addEventListener('click', function () {
-    fleetRun(['club-queue'], 'club queue status');
+    $('fleet-queue').style.display = 'block';
+    $('fleet-queue').className = 'outbox';
+    $('fleet-queue').textContent = 'querying queue…';
+    api('POST', '/api/fleet', { args: ['club-queue'], timeout: 30000 }).then(renderClubQueue);
   });
   $('fleet-leave-all').addEventListener('click', function () {
     fleetRun(['command', '--action', 'leave-club'].concat(targetArgs()), 'leave-club → selected bots (waits for login)');
@@ -1534,10 +1575,9 @@ const PAGE = String.raw`<!DOCTYPE html>
     var args = ['command'];
     var spec = ($('fleet-cmd-select').value || '').trim();
     if (spec) args.push('--bots', spec);
-    else if ($('fleet-all').checked) args.push('--all');
-    else args.push('--bot', $('fleet-bot').value || '1');
+    else args.push('--all');
     args.push('--action', action);
-    fleetRun(args.concat(extra), 'command ' + action + (spec ? ' (selection)' : $('fleet-all').checked ? ' (all bots)' : ''));
+    fleetRun(args.concat(extra), 'command ' + action + (spec ? ' (selection)' : ' (all bots)'));
   });
 
   // splits a command line into tokens, honouring single/double quotes
@@ -1558,6 +1598,42 @@ const PAGE = String.raw`<!DOCTYPE html>
   }
 
   var fleetRefreshTimer = null;
+  function refreshAccountsNote() {
+    api('GET', '/api/state').then(function (j) {
+      var el = $('fleet-accounts-note');
+      if (!el) return;
+      var files = (j.state && j.state.accountFiles) || [];
+      el.textContent = files.length
+        ? files.length + ' saved account file(s) in accounts/ — they log back in automatically with their stored token. Launch will NOT re-create them.'
+        : 'No saved accounts yet — launching will create new ones. Existing files (any name, e.g. probe.json) are reused.';
+    });
+  }
+  function renderClubQueue(j) {
+    var el = $('fleet-queue');
+    if (!el) return;
+    el.style.display = 'block';
+    el.className = 'outbox';
+    var q = j && (j.result || j);
+    if (!j.ok || !q || typeof q !== 'object') {
+      el.textContent = (j && j.error) ? ('query failed: ' + j.error) : pretty(j);
+      el.className = 'outbox err';
+      return;
+    }
+    var lines = [];
+    lines.push('club ' + (q.tag || '—') + ' · queue enabled: ' + (q.enabled ? 'yes' : 'no'));
+    if (q.full === true) lines.push('club is FULL — queued bots wait for a free seat');
+    else if (q.known) lines.push('members ' + (q.memberCount || 0) + '/' + (q.capacity || '?') + ' · seats free: ' + (q.capacityLeft == null ? '?' : q.capacityLeft));
+    else lines.push('capacity: checking…');
+    lines.push('waiting ' + q.want + ' · joining ' + q.joining + ' · joined ' + q.joined + ' · failed ' + q.failed);
+    if (Array.isArray(q.slots) && q.slots.length) {
+      lines.push('');
+      lines.push(q.slots.map(function (s) {
+        return '  #' + s.index + ' ' + s.state + (s.error ? ' — ' + s.error : '');
+      }).join('\n'));
+    }
+    el.textContent = lines.join('\n');
+    el.className = 'outbox' + (q.full === true ? ' warn' : q.failed ? ' err' : '');
+  }
   function refreshFleet() {
     api('POST', '/api/fleet', { args: ['status'], timeout: 15000 }).then(function (j) {
       var status = j.result || j;
@@ -1567,6 +1643,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       renderFleetCards(status);
       renderBots(status);
       renderFleetStale(status);
+      refreshAccountsNote();
     });
     // Живой дашборд: статус сам обновляется, пока открыт Fleet.
     if (fleetRefreshTimer) clearTimeout(fleetRefreshTimer);
@@ -1593,8 +1670,8 @@ const PAGE = String.raw`<!DOCTYPE html>
     cards += card('Registered', String(m.registered || 0), 'small');
     var club = m.club || {};
     var clubTxt = club.enabled
-      ? (((club.want || 0) + (club.joining || 0) + ' queued') +
-      (club.full ? ' · full' : (club.memberCount != null ? ' · ' + club.memberCount + ' in' : '')) +
+      ? ((((club.want || 0) + (club.joining || 0)) + ' queued') +
+      (club.full === true ? ' · full — waiting' : (club.memberCount != null ? ' · ' + club.memberCount + (club.capacity ? '/' + club.capacity : '') + ' in' : '')) +
       (club.failed ? ' · ' + club.failed + ' err' : ''))
       : String(states['joining-club'] || 0) + ' joining';
     cards += card('Club', clubTxt, 'small');
@@ -1639,6 +1716,8 @@ const PAGE = String.raw`<!DOCTYPE html>
         '<button data-ai="' + ind + '" data-a="chat" title="send a club chat">Chat</button>' +
         '<button data-ai="' + ind + '" data-a="info" title="show account details">Info</button>' +
         '</span>';
+      var file = b.file || ('bot-' + ind + '.json');
+      var isReused = b.file && b.file !== ('bot-' + ind + '.json');
       return '<tr>' +
         '<td>#' + ind + '</td>' +
         '<td class="st ' + b.status + '">' + b.status + '</td>' +
@@ -1646,6 +1725,7 @@ const PAGE = String.raw`<!DOCTYPE html>
         '<td>' + esc(tag) + '</td>' +
         '<td>' + esc(club) + '</td>' +
         '<td>' + reg + '</td>' +
+        '<td class="muted">' + esc(file) + (isReused ? ' <span class="pill" title="existing account reused, not re-created">reused</span>' : '') + '</td>' +
         '<td class="muted">' + info + '</td>' +
         '<td>' + acts + '</td>' +
         '</tr>';
@@ -1663,7 +1743,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       '</div>';
     box.className = 'outbox bots';
     box.innerHTML = summary +
-      '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>account</th><th>info</th><th>actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      '<table class="bots"><thead><tr><th>#</th><th>status</th><th>name</th><th>tag</th><th>club</th><th>account</th><th>file</th><th>info</th><th>actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   // После внезапной перезагрузки хоста fleet.pid/status остаются, а процесс мёртв:

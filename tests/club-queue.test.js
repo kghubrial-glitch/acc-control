@@ -28,9 +28,19 @@ class FakeOnline extends EventEmitter {
     this.state = 'online';
     this.club = null;
     this.attempts = 1;
+    this.joinRefuses = false;
+    this.messaging = { send() {} };
   }
   close() {
     this.state = 'closed';
+  }
+  wait() {
+    const promise = Promise.resolve().then(() => {
+      if (this.joinRefuses) throw new Error('клуб заполнен');
+      this.club = clubRef();
+      return { type: 24399, payload: Buffer.alloc(0) };
+    });
+    return { promise, cancel() {}, item: { types: [] } };
   }
 }
 
@@ -101,23 +111,17 @@ test('полный клуб: боты ждут в очереди, заявки �
 
 test('освободилось место — очередь вступает, лишние ждут следующей попытки', async () => {
   const { root, fleet } = setup({ clubFillConcurrency: 2 });
-  const joined = [];
   const restore = stubActions(async (client, action) => {
     if (action === 'club-info') return { full: false, memberCount: 10, members: [] };
-    if (action === 'join-club') {
-      client.club = clubRef();
-      joined.push(client.index);
-      return { confirmed: true };
-    }
     return {};
   });
   try {
     fleet.wantClub([1, 2, 3]);
     await sleep(80);
-    assert.deepEqual(joined.sort((a, b) => a - b), [1, 2], 'за одну волну — не больше concurrency');
     assert.deepEqual(
       fleet.slots.map((s) => s.clubState),
       ['joined', 'joined', 'want'],
+      'за одну волну — не больше concurrency, третий ждёт',
     );
     // Следующая волна добирает третьего.
     await fleet.pumpClub();
@@ -155,14 +159,15 @@ test('после лимита попыток слот помечается faile
   const { root, fleet } = setup({ clubFillMaxAttempts: 1, clubFillConcurrency: 1 });
   const restore = stubActions(async (client, action) => {
     if (action === 'club-info') return { full: false, memberCount: 5, members: [] };
-    if (action === 'join-club') throw new Error('клуб заполнен');
     return {};
   });
   try {
+    fleet.clients.get(1).joinRefuses = true;
     fleet.wantClub([1]);
     await sleep(80);
-    assert.equal(fleet.slots.find((s) => s.index === 1).clubState, 'failed');
-    assert.match(fleet.slots.find((s) => s.index === 1).clubError, /заполнен/);
+    const slot = fleet.slots.find((s) => s.index === 1);
+    assert.equal(slot.clubState, 'failed');
+    assert.match(slot.clubError, /заполнен/);
   } finally {
     restore();
     fleet.stop();

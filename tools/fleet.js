@@ -191,7 +191,7 @@ async function removeStaleFleetState(signal) {
 }
 
 // Индексы существующих accounts/bot-N.json — естественный набор для выбора --bots.
-function accountIndexes() {
+function botIndexes() {
   try {
     return fs
       .readdirSync(path.join(ROOT, 'accounts'))
@@ -203,13 +203,26 @@ function accountIndexes() {
     return [];
   }
 }
+// Все сохранённые аккаунты. Если bot-N.json нет, но есть «именные» файлы (probe.json
+// и т.п.), флот усыновляет их первым слотом — считаем минимум один «существующий» индекс.
+function accountIndexes() {
+  const bots = botIndexes();
+  if (bots.length) return bots;
+  try {
+    const names = fs.readdirSync(path.join(ROOT, 'accounts'));
+    if (names.some((n) => n.endsWith('.json') && n !== 'index.json' && !/^bot-\d+\.json$/.test(n))) return [1];
+  } catch {}
+  return [];
+}
 
 // Разворачивает --bots/--select в явный список индексов для запуска флота.
 // Если файлов аккаунтов ещё нет, границы берём из самого выражения или --count.
 function resolveStartIndexes(options = {}) {
   const spec = options.bots || options.select || options.indexes;
   if (spec == null || spec === '') return null;
-  let available = accountIndexes();
+  // Для выбора актуальны только bot-N файлы: «именные» аккаунты флот усыновит
+  // отдельным слотом, поэтому числовой диапазон раскрываем полностью.
+  let available = botIndexes();
   if (!available.length) {
     const numbers = String(spec).match(/\d+/g);
     const max = numbers && numbers.length ? Math.max(...numbers.map(Number)) : Number(options.count) || 1;
