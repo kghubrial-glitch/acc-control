@@ -142,6 +142,37 @@ function ownedPID() {
     return null;
   }
 }
+// Бесплатные прокси из публичных списков: один прогон proxy-watch (once) собирает и
+// проверяет пул working-proxies.json, через который флот получает ротацию IP.
+function buildFreeProxyPool() {
+  const poolFile = 'working-proxies.json';
+  return new Promise((resolve) => {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(ROOT, poolFile), 'utf8'));
+      const proxies = Array.isArray(data) ? data : data.proxies;
+      const checkedAt = data && data.checkedAt ? Date.parse(data.checkedAt) : 0;
+      if (Array.isArray(proxies) && proxies.length && Date.now() - checkedAt < 10 * 60 * 1000) return resolve(poolFile);
+    } catch {}
+    console.log('Собираю бесплатные прокси: первый прогон проверки…');
+    const child = spawn(
+      process.execPath,
+      [path.join(ROOT, 'tools', 'proxy-watch.js'), 'once', '--output', poolFile, '--limit', '240'],
+      { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] },
+    );
+    const done = () => {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(ROOT, poolFile), 'utf8'));
+        const proxies = Array.isArray(data) ? data : data.proxies;
+        return resolve(Array.isArray(proxies) && proxies.length ? poolFile : null);
+      } catch {
+        return resolve(null);
+      }
+    };
+    child.on('close', done);
+    child.on('error', done);
+  });
+}
+
 async function main() {
   const argv = process.argv.slice(2),
     { options, positional } = parse(argv),
@@ -160,6 +191,11 @@ async function main() {
   }
   if (command === 'start') {
     if (ownedPID()) throw new Error('Процесс уже запущен; используйте status или stop');
+    if (options.freeProxies && !options.proxyPoolFile) {
+      const pool = await buildFreeProxyPool();
+      if (pool) argv.push('--proxy-pool-file', pool);
+      else console.error('Рабочих прокси нет — флот стартует без IP-ротации');
+    }
     // Ротация до открытия файла: на Windows переименовать занятый файл нельзя.
     rotateLog(LOG, logOptions(options));
     const child = spawn(process.execPath, [__filename, 'run', ...argv.slice(1)], {

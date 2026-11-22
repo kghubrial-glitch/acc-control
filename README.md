@@ -98,6 +98,10 @@ tag**, then Start — every bot is created and logged in, and each one joins tha
 Bots table shows each account's name, tag, club and status. Tick **All bots** to send one
 command to every bot, e.g. `join-club --club-tag #TAG` or `leave-club`.
 
+The **Command a bot** panel now exposes the full command set (login, clubs, friends, lobby,
+matchmaking, spectate, Brawl TV, roster tools…); the line under the selector shows the
+parameters each action expects. Club & Friends and Lobby & Battle panes carry ready-made forms
+for the frequent operations. The **Proxies** tab manages free proxies for IP rotation (see below).
 ## Accounts
 
 `accounts/*.json` contain `passToken` — that is the login. Keep these files safe: deleting an
@@ -258,18 +262,42 @@ is not guaranteed.
 How to update `config.json` and the license block manually:
 [`docs/APK-UPDATE.md`](docs/APK-UPDATE.md).
 
-## Proxy
+## Proxy — free IP rotation against rate limits
+
+If mass registration or joins throttle your IP, route fleet logins through free proxies: every
+bot (and every reconnect) connects from a different source IP.
+
+```sh
+# one check pass, then launch with rotation:
+node tools/proxy-watch.js once --limit 240
+node tools/fleet.js start --first 1 --count 100 --free-proxies
+
+# or keep the pool fresh in the background:
+node tools/proxy-watch.js start --interval 600
+node tools/fleet.js start --first 1 --count 100 --proxy-pool-file working-proxies.json
+node tools/proxy-watch.js status
+node tools/proxy-watch.js stop
+```
+
+`--free-proxies` runs one `once` pass (unless the pool is < 10 min old) and adds the pool
+automatically. `working-proxies.json` is (re)written on every batch; a proxy is added only if it
+answered the game server with a correct `ServerHello`, so the pool only contains reachable IPs.
+
+Single proxy without rotation:
 
 ```sh
 node Program.js login --account accounts/bot-1.json --proxy-file proxy.json
-node tools/proxy-watch.js --pool-limit 500
 ```
 
 `proxy.json`: `{"url":"socks5://HOST:PORT"}` or
-`{"url":"http://HOST:PORT","username":"USER","password":"PASS"}`. There is also
-`--proxy-pool-file working-proxies.json` and the collector `tools/proxy-watch.js`. A tunnel is
-considered working if it receives a correct `ServerHello` from the game server. Device traffic
-is not redirected.
+`{"url":"http://HOST:PORT","username":"USER","password":"PASS"}`. `--proxy-pool-file
+working-proxies.json` also works without `once`. Device traffic is not redirected — only the
+game connections go through the tunnel.
+
+In the web console the **Proxies** tab does the same thing: Start watcher / Fetch once / Refresh
+now / Stop, pool size in the status box, and the *Use for the fleet* toggle makes **Launch
+bots** add `--proxy-pool-file working-proxies.json`. If the pool is empty the flag is dropped
+automatically and bots fall back to the direct IP, so a batch never silently dies.
 
 ## Diagnostics
 

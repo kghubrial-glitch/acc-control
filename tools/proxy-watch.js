@@ -60,7 +60,13 @@ if (command === 'start') {
   console.log('Proxy watcher started: PID ' + p.pid);
   return;
 }
-if (command !== 'run') throw new Error('Use start|run|status|stop|refresh');
+// Once = один прогон проверок с выходом: пул готов к запуску флота, демон не остаётся.
+const runCommand = command === 'run' || command === 'once';
+if (command === 'once') {
+  if (owned()) throw new Error('Proxy watcher is already running; its pool updates automatically');
+  process.env.PROXY_WATCH_ONCE = '1';
+}
+if (!runCommand) throw new Error('Use start|run|once|status|stop|refresh');
 if (owned()) throw new Error('Proxy watcher already running');
 const poolFile = path.resolve(ROOT, option('--output', 'working-proxies.json'));
 const source = option('--source', null);
@@ -121,7 +127,7 @@ const watcher = fs.watch(path.dirname(poolFile), (event, name) => {
     requestRefresh();
   }
 });
-fs.writeFileSync(PID, String(process.pid), { mode: 0o600 });
+if (process.env.PROXY_WATCH_ONCE !== '1') fs.writeFileSync(PID, String(process.pid), { mode: 0o600 });
 function status(error = null) {
   atomic(STATE, {
     pid: process.pid,
@@ -275,6 +281,12 @@ async function cycle() {
     busy = false;
     if (!stopping) {
       status();
+      if (process.env.PROXY_WATCH_ONCE === '1') {
+        try {
+          fs.unlinkSync(PID);
+        } catch {}
+        process.exit(0);
+      }
       timer = setTimeout(cycle, pendingRefresh ? Math.max(0, refreshNotBefore - Date.now()) : next);
       pendingRefresh = false;
     }

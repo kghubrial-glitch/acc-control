@@ -200,6 +200,48 @@ async function runTool(bin, args, options) {
 }
 
 // ---------------------------------------------------------------------------
+// free-proxy pool backend (tools/proxy-watch.js)
+// ---------------------------------------------------------------------------
+
+function poolEntries(file) {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, file || 'working-proxies.json'), 'utf8'));
+    const items = Array.isArray(data) ? data : data.proxies;
+    return Array.isArray(items) ? items : [];
+  } catch {
+    return [];
+  }
+}
+
+function proxyPoolInfo() {
+  const entries = poolEntries('working-proxies.json');
+  let checkedAt = null;
+  try {
+    checkedAt = JSON.parse(fs.readFileSync(path.join(ROOT, 'working-proxies.json'), 'utf8')).checkedAt || null;
+  } catch {}
+  return { poolCount: entries.length, poolCheckedAt: checkedAt, poolValid: entries.length };
+}
+
+async function proxyPoolStatus() {
+  const r = await runNode(path.join(ROOT, 'tools', 'proxy-watch.js'), ['status'], { timeout: 8000 });
+  const parsed = lastJSON(r.stdout) || {};
+  return { ok: true, running: !!parsed.running, state: parsed, ...proxyPoolInfo() };
+}
+
+function proxyArgs(body, { interval = false } = {}) {
+  const args = [
+    '--output',
+    String(body.file || 'working-proxies.json'),
+    '--limit',
+    String(Math.max(1, Math.min(1000, Number(body.limit) || 240))),
+    '--parallel',
+    String(Math.max(1, Math.min(32, Number(body.parallel) || 6))),
+  ];
+  if (interval) args.push('--interval', String(Math.max(60, Number(body.interval) || 600)));
+  return args;
+}
+
+// ---------------------------------------------------------------------------
 // auth
 // ---------------------------------------------------------------------------
 
@@ -326,6 +368,13 @@ function router(req, res) {
           return sendJSON(res, out.ok ? 200 : 400, out);
         }
         if (p === '/api/fleet') {
+          // Пул прокси мог не наполниться: без записей не подставляем --proxy-pool-file,
+          // иначе клиент упадёт на чтении файла и флот молча умрёт.
+          const poolIdx = argv.indexOf('--proxy-pool-file');
+          if (poolIdx !== -1) {
+            const poolInfo = poolEntries(argv[poolIdx + 1]);
+            if (!poolInfo.length) argv = argv.slice(0, poolIdx).concat(argv.slice(poolIdx + 2));
+          }
           const out = await runTool('fleet.js', argv, { timeout });
           return sendJSON(res, out.ok ? 200 : 400, out);
         }
@@ -336,6 +385,32 @@ function router(req, res) {
         if (p === '/api/watch') {
           const out = await runProgram(['watch', '--once', '--json'], { timeout: timeout || 30000 });
           return sendJSON(res, out.ok ? 200 : 400, out);
+        }
+        if (p === '/api/proxies') {
+          const action = String(body.action || 'status');
+          if (action === 'status') return sendJSON(res, 200, await proxyPoolStatus());
+          const waiter =
+            action === 'once'
+              ? runNode(path.join(ROOT, 'tools', 'proxy-watch.js'), ['once', ...proxyArgs(body)], { timeout: 180000 })
+              : action === 'start'
+                ? runNode(
+                    path.join(ROOT, 'tools', 'proxy-watch.js'),
+                    ['start', ...proxyArgs(body, { interval: true })],
+                    {
+                      timeout: 15000,
+                    },
+                  )
+                : action === 'refresh' || action === 'stop'
+                  ? runNode(path.join(ROOT, 'tools', 'proxy-watch.js'), [action], { timeout: 10000 })
+                  : null;
+          if (!waiter) return sendJSON(res, 400, { ok: false, error: 'Unknown proxy action: ' + action });
+          const r = await waiter;
+          return sendJSON(res, r.code === 0 ? 200 : 400, {
+            ok: r.code === 0,
+            action,
+            run: { code: r.code, error: r.error, stderr: (r.stderr || '').slice(-2000) },
+            ...(await proxyPoolStatus()),
+          });
         }
         if (p === '/api/config') {
           if (!body.config || typeof body.config !== 'object' || Array.isArray(body.config)) {
@@ -515,6 +590,7 @@ const PAGE = String.raw`<!DOCTYPE html>
       <button data-tab="terminal"><span>Terminal</span></button>
       <button data-tab="accounts"><span>Accounts</span></button>
       <button data-tab="fleet"><span>Fleet</span></button>
+      <button data-tab="proxy"><span>Proxies</span></button>
       <button data-tab="social"><span>Club &amp; Friends</span></button>
       <button data-tab="lobby"><span>Lobby &amp; Battle</span></button>
       <button data-tab="config"><span>Config</span></button>
@@ -658,17 +734,52 @@ const PAGE = String.raw`<!DOCTYPE html>
         <h3>Command a bot</h3>
         <div class="row">
           <div class="field"><label>Bot (ignored when All)</label><input id="fleet-bot" value="1" style="width:60px"></div>
-          <div class="field"><label>Action</label><select id="fleet-action"></select></div>
-          <div class="field" style="flex:1"><label>Extra args (e.g. --text "Hi" --club-tag #TAG)</label><input id="fleet-extra" placeholder="--text Hello"></div>
+          <div class="field" style="flex:1"><label>Action</label><select id="fleet-action"></select></div>
+          <div class="field" style="flex:1"><label>Extra args</label><input id="fleet-extra" placeholder="e.g. --club-tag #TAG --text Hello"></div>
           <button class="primary" id="fleet-cmd">Send</button>
         </div>
+        <div class="muted" id="fleet-action-hint" style="margin-top:6px;font-size:12px"></div>
         <div class="row" style="margin-top:8px">
-          <label class="check"><input type="checkbox" id="fleet-all"> All bots — send the command to every bot in the fleet (e.g. join-club --club-tag)</label>
+          <label class="check"><input type="checkbox" id="fleet-all"> All bots — send to every bot (for bulk club/logins)</label>
         </div>
       </div>
       <div class="panel">
         <h3>Bots</h3>
         <div id="fleet-bots" class="outbox">no fleet status yet — start a fleet first</div>
+      </div>
+    </section>
+
+    <section id="tab-proxy" class="tab">
+      <h2>Proxies — free IP rotation</h2>
+      <p class="subtitle">Fetches free SOCKS5/HTTP proxies from public lists, verifies each one against the game server, and routes fleet logins through different IPs to dodge IP-based rate / throttle limits.</p>
+      <div class="grid2">
+        <div class="panel">
+          <h3>Proxy pool</h3>
+          <div class="row">
+            <div class="field" style="flex:1"><label>Pool file</label><input id="px-file" value="working-proxies.json"></div>
+            <div class="field"><label>Limit</label><input id="px-limit" value="240" style="width:62px"></div>
+            <div class="field"><label>Parallel</label><input id="px-parallel" value="6" style="width:58px"></div>
+            <div class="field"><label>Refresh (s)</label><input id="px-interval" value="600" style="width:62px"></div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button class="primary" id="px-start">Start watcher</button>
+            <button class="ghost" id="px-once">Fetch once</button>
+            <button id="px-refresh">Refresh now</button>
+            <button id="px-stop">Stop</button>
+          </div>
+          <p class="hint">Start watcher keeps the pool fresh in the background. Fetch once runs a single batch and exits — best right before a big bot launch. Each entry is verified with a real ClientHello through the proxy before it is added to the pool.</p>
+        </div>
+        <div class="panel">
+          <h3>Use for the fleet</h3>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="px-use"> Use the pool for fleet logins (IP rotation per bot)</label>
+          </div>
+          <p class="hint">When enabled, Launch bots adds <code>--proxy-pool-file</code> so every bot (and every reconnect) rotates to a different working proxy. Empty pool → bots fall back to your direct IP automatically, so the fleet never silently dies.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Status</h3>
+        <div id="px-status" class="outbox">Loading…</div>
       </div>
     </section>
 
@@ -1000,13 +1111,69 @@ const PAGE = String.raw`<!DOCTYPE html>
   }
 
   // ------------------------- fleet -------------------------
-  var FLEET_ACTIONS = ['login', 'create-account', 'create-club', 'join-club', 'leave-club', 'club-chat', 'club-request', 'club-answer', 'create-room', 'join-room', 'leave-room', 'chat', 'ready', 'matchmake', 'cancel-matchmake', 'team-mode', 'team-map', 'friend', 'accept-friend', 'decline-friend', 'remove-friend', 'friends', 'team-invite', 'account-region', 'spectate', 'stop-spectate', 'practice'];
+  var FLEET_ACTIONS = ['login', 'create-account', 'account-region', 'friend', 'accept-friend', 'decline-friend', 'remove-friend', 'friends', 'friends-online', 'spectate', 'brawl-tv-channels', 'brawl-tv-next', 'brawl-tv', 'stop-spectate', 'create-club', 'join-club', 'leave-club', 'club-info', 'club-recommendations', 'club-members', 'club-online', 'club-chat', 'club-stream', 'club-requests', 'club-settings', 'club-description', 'club-trophies', 'club-role', 'club-promote', 'club-demote', 'club-kick', 'club-invite', 'club-request', 'club-answer', 'create-room', 'join-room', 'leave-room', 'team-info', 'chat', 'ready', 'unready', 'matchmake', 'cancel-matchmake', 'team-mode', 'team-map', 'team-event', 'team-location', 'team-invite', 'team-answer', 'invite-answer', 'accept-invite', 'decline-invite', 'team-request', 'team-cancel-request', 'team-request-answer', 'team-cancel-invite', 'team-kick', 'team-advertise', 'team-status', 'invitations', 'team-brawler', 'team-bot', 'practice', 'player-status', 'top'];
+  var ACTION_HINTS = {
+    'account-region': '--region <code> (eu / us / ru / asia…)',
+    'friend': '--tag #PLAYER_TAG',
+    'accept-friend': '--tag #PLAYER_TAG',
+    'decline-friend': '--tag #PLAYER_TAG',
+    'remove-friend': '--tag #PLAYER_TAG',
+    'spectate': '--tag #PLAYER_TAG',
+    'brawl-tv': '--experimental',
+    'brawl-tv-channels': '--experimental',
+    'brawl-tv-next': '--experimental',
+    'create-club': '--club-name "Club Name"',
+    'join-club': '--club-tag #TAG',
+    'club-info': '--club-tag #TAG (omit — your own club)',
+    'club-members': '--club-tag #TAG (omit — your own club)',
+    'club-online': '--club-tag #TAG (omit — your own club)',
+    'club-chat': '--text "hello"',
+    'club-settings': '--description "…" --type 1|2|3 --required-trophies 0',
+    'club-description': '--description "text"',
+    'club-trophies': '--required-trophies N',
+    'club-role': '--tag #MEMBER --role <role>',
+    'club-promote': '--tag #MEMBER',
+    'club-demote': '--tag #MEMBER',
+    'club-kick': '--tag #MEMBER [--text reason]',
+    'club-invite': '--tag #PLAYER_TAG --experimental',
+    'club-request': '--club-tag #TAG --text "reason"',
+    'club-answer': '--tag #MEMBER --accept true|false',
+    'create-room': '--type 0|1 [--once]',
+    'join-room': '--code ROOM_CODE [--once]',
+    'chat': '--text "hello"',
+    'team-mode': '--mode <mode id>',
+    'team-map': '--map <map name>',
+    'team-event': '--event <id> [--slot N]',
+    'team-location': '--location <value>',
+    'team-invite': '--tag #PLAYER_TAG',
+    'team-answer': '--accept true|false --experimental',
+    'invite-answer': '--accept true|false [--code]',
+    'accept-invite': '[--code ROOM_CODE]',
+    'decline-invite': '[--code ROOM_CODE]',
+    'team-request': '--tag #PLAYER_TAG',
+    'team-request-answer': '--tag #PLAYER --accept true|false',
+    'team-cancel-invite': '--tag #PLAYER_TAG',
+    'team-kick': '--tag #PLAYER_TAG',
+    'team-advertise': '--experimental',
+    'team-status': '--status <value>',
+    'team-brawler': '--brawler <index> --experimental',
+    'team-bot': '--slot 0-9 --disabled true|false',
+    'practice': '--experimental',
+    'player-status': '--tag #PLAYER_TAG --experimental',
+    top: '--type 0|1'
+  };
   var fleetActionSel = $('fleet-action');
   FLEET_ACTIONS.forEach(function (a) {
     var o = document.createElement('option');
     o.value = a; o.textContent = a;
     fleetActionSel.appendChild(o);
   });
+  function updateFleetHint() {
+    var h = ACTION_HINTS[$('fleet-action').value];
+    $('fleet-action-hint').textContent = h ? 'Parameters: ' + h : 'No extra parameters needed.';
+  }
+  fleetActionSel.addEventListener('change', updateFleetHint);
+  updateFleetHint();
 
   function fleetRun(args, label) {
     $('fleet-status').textContent = label + ' …';
@@ -1038,6 +1205,8 @@ const PAGE = String.raw`<!DOCTYPE html>
     if ($('fleet-prefix').value.trim()) args.push('--name-prefix', $('fleet-prefix').value.trim());
     var club = $('fleet-clubtag').value.trim();
     if (club) args.push('--club-tag', club);
+    if ($('px-use') && $('px-use').checked)
+      args.push('--proxy-pool-file', $('px-file').value.trim() || 'working-proxies.json');
     fleetRun(args, 'start');
   });
   $('fleet-join-all').addEventListener('click', function () {
@@ -1048,6 +1217,71 @@ const PAGE = String.raw`<!DOCTYPE html>
   $('fleet-leave-all').addEventListener('click', function () {
     fleetRun(['command', '--all', '--action', 'leave-club'], 'leave-club (all bots)');
   });
+
+  // ------------------------- proxies (free IP rotation) -------------------------
+  var PX_KEY = 'nullsweb.px';
+  function loadProxyPrefs() {
+    try {
+      var d = JSON.parse(localStorage.getItem(PX_KEY) || '{}');
+      $('px-use').checked = !!d.use;
+      if (d.file) $('px-file').value = d.file;
+      if (d.limit) $('px-limit').value = d.limit;
+      if (d.parallel) $('px-parallel').value = d.parallel;
+      if (d.interval) $('px-interval').value = d.interval;
+    } catch (e) {}
+  }
+  function saveProxyPrefs() {
+    try {
+      localStorage.setItem(PX_KEY, JSON.stringify({
+        use: $('px-use').checked,
+        file: $('px-file').value.trim() || 'working-proxies.json',
+        limit: $('px-limit').value || '240',
+        parallel: $('px-parallel').value || '6',
+        interval: $('px-interval').value || '600'
+      }));
+    } catch (e) {}
+  }
+  loadProxyPrefs();
+  ['px-use', 'px-file', 'px-limit', 'px-parallel', 'px-interval'].forEach(function (id) {
+    $(id).addEventListener('change', saveProxyPrefs);
+  });
+  function renderProxyStatus(j) {
+    var lines = [];
+    lines.push((j.running ? 'watcher: RUNNING' : 'watcher: stopped') +
+      (j.poolCount ? (' | pool: ' + j.poolCount + ' working proxies' + (j.poolCheckedAt ? ' (checked ' + j.poolCheckedAt + ')' : '')) : ' | pool: empty — fetch once or start the watcher'));
+    if (j.state && j.state.busy) lines.push('checking proxies right now…');
+    if (j.state && j.state.error) lines.push('last error: ' + j.state.error);
+    if (j.state && j.state.sourceResults) {
+      lines.push('sources: ' + j.state.sourceResults.map(function (s) { return s.name + '=' + (s.error ? 'ERR' : (s.entries + ' raw')); }).join(' '));
+    }
+    $('px-status').textContent = lines.join('\n');
+    $('px-status').className = 'outbox' + (j.running ? '' : ' err');
+  }
+  function proxyAction(action) {
+    saveProxyPrefs();
+    if (action === 'once') {
+      $('px-status').textContent = 'Fetching proxies… checking each one against the server (can take up to a minute).';
+      $('px-status').className = 'outbox';
+    }
+    api('POST', '/api/proxies', {
+      action: action,
+      file: $('px-file').value.trim() || 'working-proxies.json',
+      limit: $('px-limit').value || '240',
+      parallel: $('px-parallel').value || '6',
+      interval: $('px-interval').value || '600'
+    }).then(function (j) {
+      if (j.ok) renderProxyStatus(j);
+      else {
+        $('px-status').textContent = ((j.run && j.run.stderr) || j.error || ('proxy action failed: ' + action)).slice(-400);
+        $('px-status').className = 'outbox err';
+      }
+    });
+  }
+  $('px-start').addEventListener('click', function () { proxyAction('start'); });
+  $('px-once').addEventListener('click', function () { proxyAction('once'); });
+  $('px-refresh').addEventListener('click', function () { proxyAction('refresh'); });
+  $('px-stop').addEventListener('click', function () { proxyAction('stop'); });
+  proxyAction('status');
   $('fleet-cmd').addEventListener('click', function () {
     var action = $('fleet-action').value;
     var extra = tokenizeLine($('fleet-extra').value);
