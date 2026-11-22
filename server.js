@@ -720,7 +720,7 @@ const PAGE = String.raw`<!DOCTYPE html>
         <div class="panel">
           <h3>Create account</h3>
           <div class="row">
-            <div class="field" style="flex:1"><label>File (accounts/*.json)</label><input id="acc-file" placeholder="bot-5.json"></div>
+            <div class="field" style="flex:1"><label>File (accounts/*.json)</label><input id="acc-file" placeholder="bot-1.json"></div>
           </div>
           <div class="row" style="margin-top:10px">
             <div class="field" style="flex:1"><label>Name</label><input id="acc-name" placeholder="MyBot"></div>
@@ -749,6 +749,9 @@ const PAGE = String.raw`<!DOCTYPE html>
           </div>
           <div class="row" style="margin-top:10px">
             <button class="primary" id="acc-arabic">Set all accounts to Arabic (العربية · ar-SA)</button>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="acc-reset" title="Stop the fleet and delete ALL accounts + runtime state (accounts/, fleet.pid, fleet-status.json, .runtime/, logs, proxy cache). Source code and config stay untouched — no need to clone the repo again." style="background:#5a151e;color:#fff;border-color:#c0392b">Reset everything (wipe all accounts &amp; state)</button>
           </div>
         </div>
       </div>
@@ -1096,6 +1099,7 @@ const PAGE = String.raw`<!DOCTYPE html>
     api('GET', '/api/state').then(function (j) {
       if (!j.ok || !j.state) return;
       STATE.state = j.state;
+      if ($('acc-file') && !$('acc-file').value) $('acc-file').placeholder = nextBotFile();
       var s = j.state;
       $('v-version').textContent = s.version;
       $('v-host').textContent = (s.host || '-') + ':' + (s.port || '-');
@@ -1300,6 +1304,26 @@ const PAGE = String.raw`<!DOCTYPE html>
         : pretty(j);
       $('acc-list').className = 'outbox' + (j.ok ? '' : ' err');
       refreshRegistry();
+    });
+  });
+  $('acc-reset').addEventListener('click', function () {
+    var ask = window.prompt(
+      'This stops the fleet and wipes ALL accounts + runtime state.\n' +
+      'Source files and config stay untouched.\n\n' +
+      'Type RESET to confirm:',
+      '',
+    );
+    if (ask !== 'RESET') return;
+    statusEl($('acc-list'), 'resetting — wiping all accounts & state …', 'warn');
+    $('acc-reset').disabled = true;
+    api('POST', '/api/accounts', { args: ['reset', '--force'], timeout: 90000 }).then(function (j) {
+      $('acc-reset').disabled = false;
+      $('acc-list').textContent = j.ok
+        ? 'Reset complete. Removed ' + (j.result.removed || 0) + ' item(s); fleet ' + (j.result.stopped ? 'stopped' : 'not running') + '.\n' + pretty(j)
+        : pretty(j);
+      $('acc-list').className = 'outbox' + (j.ok ? '' : ' err');
+      refreshRegistry();
+      if (window.refreshState) window.refreshState();
     });
   });
   $('acc-list-again').addEventListener('click', () => refreshRegistry());

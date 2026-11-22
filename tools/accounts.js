@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 const path = require('node:path');
+const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
 const { parse } = require('../lib/Args');
 const Accounts = require('../lib/Accounts');
 
 const ROOT = path.resolve(__dirname, '..');
 // lib/Args.js не знает про эти флаги и без значения упал бы; подставляем явное true.
-const FLAGS = new Set(['json', 'registered', 'dry-run', 'all']);
+const FLAGS = new Set(['json', 'registered', 'dry-run', 'all', 'force']);
 
 function parseArgs(argv) {
   return parse(argv.map((item) => (FLAGS.has(item.slice(2)) ? `${item}=true` : item)));
@@ -87,7 +89,69 @@ function main() {
     console.log(JSON.stringify(report, null, 2));
     return;
   }
-  throw new Error('accounts: list|show|refresh|prune|stats|cleanup');
+  if (command === 'reset') {
+    if (String(options.force) !== 'true') {
+      console.error('Осторожно: reset удаляет ВСЕ аккаунты и рантайм-состояние (accounts/, fleet.pid, fleet-status.json, .runtime/, логи, кэш прокси). Повторите с --force.');
+      process.exitCode = 1;
+      return;
+    }
+    const report = resetRuntime(ROOT);
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  throw new Error('accounts: list|show|refresh|prune|stats|cleanup|reset');
+}
+
+// Внутренний «сброс на чистый клон»: убираем только игнорируемые git-ом артефакты
+// (аккаунты, состояние флота, рантайм, логи, кэш прокси). Исходники и config.json
+// остаются нетронутыми — клонировать репозиторий заново не нужно.
+function resetRuntime(root) {
+  const stopped = stopFleet(root);
+  // Дожидаемся корректного завершения клиентов флота (закрытие сокетов), чтобы
+  // не удалять accounts/ прямо под пишущими процессами.
+  try {
+    spawnSync('sleep', ['1500'], { timeout: 5000, stdio: 'ignore' });
+  } catch {}
+  const removed = [];
+  const removePath = (file) => {
+    try {
+      fs.rmSync(file, { recursive: true, force: true });
+      removed.push(path.relative(root, file) || file);
+    } catch {}
+  };
+  removePath(path.join(root, 'accounts'));
+  removePath(path.join(root, '.runtime'));
+  removePath(path.join(root, '.updates'));
+  removePath(path.join(root, 'PacketsDumps'));
+  removePath(path.join(root, 'fleet.pid'));
+  removePath(path.join(root, 'fleet-status.json'));
+  removePath(path.join(root, 'proxy-watch-status.json'));
+  removePath(path.join(root, 'working-proxies.txt'));
+  removePath(path.join(root, 'working-proxies.json'));
+  removePath(path.join(root, 'proxy.json'));
+  for (const name of fs.readdirSync(root)) {
+    if (/(\.log|\.pid|\.lock|\.tmp-\d+)$/.test(name)) removePath(path.join(root, name));
+  }
+  // Пустой accounts/ и .runtime/ остаются, чтобы консоль работала сразу после сброса.
+  try {
+    fs.mkdirSync(path.join(root, 'accounts'), { recursive: true });
+    fs.mkdirSync(path.join(root, '.runtime', 'commands'), { recursive: true });
+    fs.mkdirSync(path.join(root, '.runtime', 'results'), { recursive: true });
+  } catch {}
+  return { ok: true, stopped, removed: removed.length, paths: removed.sort() };
+}
+
+function stopFleet(root) {
+  try {
+    spawnSync(process.execPath, [path.join(root, 'tools', 'fleet.js'), 'stop'], {
+      cwd: root,
+      timeout: 30000,
+      stdio: 'pipe',
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 try {
   main();
